@@ -289,7 +289,11 @@ class TomJerryRoomEnvCfg(TomJerryMovingEnvCfg):
     max_speed = 4.0
     arena_half_extent = 3.85
     catch_radius = 0.56
-    jerry_route_half_extent = 2.8
+    # Keep Jerry outside both interior barriers.  The old 2.8 m square cut
+    # through the right end of the low barrier and the top of the tall one.
+    # Jerry is script-driven, so a collider cannot correct a bad waypoint;
+    # the trajectory itself must respect obstacle clearance.
+    jerry_route_half_extent = 3.45
     jerry_route_speed = 1.25
     jerry_max_speed = 1.25
     sweeper_center_x = -1.5
