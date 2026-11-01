@@ -23,12 +23,6 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
     def __init__(self, cfg: TomJerryRoomEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
         self.sweeper = self.scene["sweeper"]
-        self.tom_ear_left = self.scene["tom_ear_left"]
-        self.tom_ear_right = self.scene["tom_ear_right"]
-        self.tom_muzzle = self.scene["tom_muzzle"]
-        self.jerry_ear_left = self.scene["jerry_ear_left"]
-        self.jerry_ear_right = self.scene["jerry_ear_right"]
-        self.jerry_tail = self.scene["jerry_tail"]
         self._sweeper_phase = torch.zeros(self.num_envs, device=self.device)
         self._sweeper_position_w = torch.zeros((self.num_envs, 2), device=self.device)
         self._sweeper_velocity_w = torch.zeros((self.num_envs, 2), device=self.device)
@@ -52,125 +46,6 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
                 (0.2, -2.8),
             ],
             device=self.device,
-        )
-        self._update_character_visuals()
-
-    @staticmethod
-    def _heading_and_perpendicular(velocity: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        speed = torch.linalg.vector_norm(velocity, dim=-1, keepdim=True)
-        fallback = torch.zeros_like(velocity)
-        fallback[:, 0] = 1.0
-        heading = torch.where(
-            speed > 0.05,
-            velocity / torch.clamp(speed, min=1.0e-6),
-            fallback,
-        )
-        perpendicular = torch.stack((-heading[:, 1], heading[:, 0]), dim=-1)
-        return heading, perpendicular
-
-    def _write_character_part(
-        self,
-        asset,
-        position: torch.Tensor,
-        orientation: torch.Tensor | None = None,
-    ) -> None:
-        root_pose = asset.data.default_root_pose.torch.clone()
-        root_pose[:, :3] = position
-        if orientation is not None:
-            root_pose[:, 3:7] = orientation
-        root_velocity = asset.data.default_root_vel.torch.clone()
-        asset.write_root_pose_to_sim_index(
-            root_pose=root_pose,
-            env_ids=self._all_env_ids,
-        )
-        asset.write_root_velocity_to_sim_index(
-            root_velocity=root_velocity,
-            env_ids=self._all_env_ids,
-        )
-
-    def _update_character_visuals(self) -> None:
-        tom_position = self.tom.data.root_pos_w.torch[:, :3]
-        jerry_position = torch.zeros_like(tom_position)
-        jerry_position[:, :2] = self._jerry_position_w
-        jerry_position[:, 2] = 0.30
-
-        tom_heading, tom_perpendicular = self._heading_and_perpendicular(
-            self._tom_velocity()
-        )
-        jerry_heading, jerry_perpendicular = self._heading_and_perpendicular(
-            self._jerry_velocity_w
-        )
-
-        def offset_position(
-            origin: torch.Tensor,
-            forward: torch.Tensor,
-            sideways: torch.Tensor,
-            z_offset: float,
-        ) -> torch.Tensor:
-            result = origin.clone()
-            result[:, :2] += forward + sideways
-            result[:, 2] += z_offset
-            return result
-
-        self._write_character_part(
-            self.tom_ear_left,
-            offset_position(
-                tom_position,
-                0.10 * tom_heading,
-                0.15 * tom_perpendicular,
-                0.37,
-            ),
-        )
-        self._write_character_part(
-            self.tom_ear_right,
-            offset_position(
-                tom_position,
-                0.10 * tom_heading,
-                -0.15 * tom_perpendicular,
-                0.37,
-            ),
-        )
-        self._write_character_part(
-            self.tom_muzzle,
-            offset_position(
-                tom_position,
-                0.33 * tom_heading,
-                torch.zeros_like(tom_heading),
-                0.02,
-            ),
-        )
-        self._write_character_part(
-            self.jerry_ear_left,
-            offset_position(
-                jerry_position,
-                -0.03 * jerry_heading,
-                0.12 * jerry_perpendicular,
-                0.18,
-            ),
-        )
-        self._write_character_part(
-            self.jerry_ear_right,
-            offset_position(
-                jerry_position,
-                -0.03 * jerry_heading,
-                -0.12 * jerry_perpendicular,
-                0.18,
-            ),
-        )
-
-        tail_orientation = torch.zeros((self.num_envs, 4), device=self.device)
-        tail_orientation[:, 0] = math.sqrt(0.5)
-        tail_orientation[:, 1] = -math.sqrt(0.5) * jerry_heading[:, 1]
-        tail_orientation[:, 2] = math.sqrt(0.5) * jerry_heading[:, 0]
-        self._write_character_part(
-            self.jerry_tail,
-            offset_position(
-                jerry_position,
-                -0.34 * jerry_heading,
-                torch.zeros_like(jerry_heading),
-                -0.02,
-            ),
-            tail_orientation,
         )
 
     def _update_jerry_trajectory(self, env_ids: torch.Tensor | Sequence[int] | None = None):
@@ -281,7 +156,6 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
         self._control_step_count += 1
         self._update_jerry_trajectory()
         self._update_sweeper_trajectory()
-        self._update_character_visuals()
 
     @staticmethod
     def _circle_hits_rect(
