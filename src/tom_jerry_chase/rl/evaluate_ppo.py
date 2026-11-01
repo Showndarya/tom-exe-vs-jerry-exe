@@ -1,4 +1,4 @@
-"""Fixed-seed evaluation for the trained Stage 5 RSL-RL PPO policy."""
+"""Fixed-seed evaluation for the trained Stage 5 RSL-RL PPO policies."""
 
 from __future__ import annotations
 
@@ -12,9 +12,19 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate the easy Tom chase policy.")
+    parser = argparse.ArgumentParser(description="Evaluate a Tom chase PPO policy.")
+    parser.add_argument(
+        "--curriculum",
+        choices=("easy", "moving"),
+        default="easy",
+        help="Environment and checkpoint family to evaluate.",
+    )
     parser.add_argument("--checkpoint", default="latest")
-    parser.add_argument("--log-root", default="/workspace/isaaclab/logs/rsl_rl/tom_jerry_easy")
+    parser.add_argument(
+        "--log-root",
+        default=None,
+        help="Override the curriculum's default RSL-RL log root.",
+    )
     parser.add_argument("--num-envs", type=int, default=64)
     parser.add_argument("--episodes", type=int, default=512)
     parser.add_argument("--seed", type=int, default=20261101)
@@ -59,22 +69,41 @@ def main() -> None:
         handle_deprecated_rsl_rl_cfg,
     )
 
-    from tom_jerry_chase.rl.agents.rsl_rl_ppo_cfg import TomJerryEasyPPORunnerCfg
-    from tom_jerry_chase.rl.tom_jerry_env_cfg import TomJerryEasyEnvCfg, TomJerryPhysicsCfg
+    from tom_jerry_chase.rl.agents.rsl_rl_ppo_cfg import (
+        TomJerryEasyPPORunnerCfg,
+        TomJerryMovingPPORunnerCfg,
+    )
+    from tom_jerry_chase.rl.tom_jerry_env_cfg import (
+        TomJerryEasyEnvCfg,
+        TomJerryMovingEnvCfg,
+        TomJerryPhysicsCfg,
+    )
 
-    checkpoint = resolve_checkpoint(args.checkpoint, Path(args.log_root))
-    env_cfg = TomJerryEasyEnvCfg()
+    if args.curriculum == "moving":
+        task_id = "TomJerry-Chase-Moving-Direct"
+        experiment_name = "tom_jerry_moving"
+        env_cfg = TomJerryMovingEnvCfg()
+        agent_cfg = TomJerryMovingPPORunnerCfg()
+    else:
+        task_id = "TomJerry-Chase-Easy-Direct"
+        experiment_name = "tom_jerry_easy"
+        env_cfg = TomJerryEasyEnvCfg()
+        agent_cfg = TomJerryEasyPPORunnerCfg()
+
+    log_root = Path(
+        args.log_root or f"/workspace/isaaclab/logs/rsl_rl/{experiment_name}"
+    )
+    checkpoint = resolve_checkpoint(args.checkpoint, log_root)
     # The unified Isaac Lab CLI resolves PresetCfg selectors before launch.
     # This standalone evaluator must choose the concrete backend itself.
     env_cfg.sim.physics = TomJerryPhysicsCfg().newton_mjwarp
     env_cfg.scene.num_envs = args.num_envs
     env_cfg.seed = args.seed
-    agent_cfg = TomJerryEasyPPORunnerCfg()
     agent_cfg.seed = args.seed
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, check_rsl_rl_version())
 
     with launch_simulation(env_cfg, args):
-        env = gym.make("TomJerry-Chase-Easy-Direct", cfg=env_cfg)
+        env = gym.make(task_id, cfg=env_cfg)
         wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
         runner = create_rsl_rl_runner(wrapped, agent_cfg)
         runner.load(str(checkpoint))
@@ -118,7 +147,8 @@ def main() -> None:
     # so report the exact number observed rather than silently discarding them.
     evaluated = completed
     result = {
-        "task": "TomJerry-Chase-Easy-Direct",
+        "task": task_id,
+        "curriculum": args.curriculum,
         "algorithm": "PPO via RSL-RL 5.5.1",
         "physics": "NVIDIA Newton MJWarp 1.6.1",
         "checkpoint": str(checkpoint),
