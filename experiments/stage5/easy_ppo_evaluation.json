@@ -1,0 +1,16 @@
+{
+  "task": "TomJerry-Chase-Easy-Direct",
+  "algorithm": "PPO via RSL-RL 5.5.1",
+  "physics": "NVIDIA Newton MJWarp 1.6.1",
+  "checkpoint": "/workspace/isaaclab/logs/rsl_rl/tom_jerry_easy/2026-11-01_21-41-59/model_79.pt",
+  "checkpoint_iteration": 79,
+  "seed": 20261101,
+  "num_parallel_envs": 64,
+  "episodes_requested": 512,
+  "episodes_completed": 513,
+  "catch_count": 511,
+  "catch_success_rate": 0.9961013645224172,
+  "out_of_bounds_count": 2,
+  "mean_catch_time_s": 0.728180080352968,
+  "vector_steps": 380
+}

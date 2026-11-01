@@ -12,10 +12,10 @@ we compare direct pursuit, A* path planning, and a PPO policy honestly.
 - [x] Stage 2 primitive room, Tom, and Jerry
 - [x] Stage 2 RTX PNG render verified on the L40S
 - [x] Authenticated Brev viewer endpoint configured
-- [ ] Browser stream visually verified (blocked by the current VM's network topology)
+- [x] Authenticated live Newton/Viser browser visualization verified
 - [x] Stage 3 direct-pursuit baseline and animated RTX replay
 - [x] Stage 4 A* planner with moving-target and blocked-route replanning
-- [ ] Stage 5 Isaac Lab PPO environment and training attempt
+- [x] Stage 5 easy Isaac Lab PPO environment, training, playback, and evaluation
 - [ ] Stage 6 reproducible comparison
 - [ ] Stage 7 portfolio documentation and demo
 
@@ -279,3 +279,58 @@ Two run-time corrections are preserved in Git history:
 The raw CSV, JSON summary, 171 PNG frames, and 86-frame GIF are in
 `/workspace/output/stage4_astar/` on Brev. The reviewed summary is stored in
 `experiments/stage4/astar_summary.json`.
+
+## Verified Stage 5 result: Learning Tom, easy curriculum
+
+The first RL curriculum deliberately removes walls and keeps Jerry stationary.
+This is the minimum task that answers one question cleanly: can PPO learn a
+continuous 2D pursuit controller from observations and reward, rather than
+being handed a direction or path?
+
+`TomJerry-Chase-Easy-Direct` is an Isaac Lab `DirectRLEnv` with 64 parallel
+rooms during training. Each blue Tom is a dynamic rigid sphere and each orange
+Jerry is a stationary target. The policy receives four numbers:
+
+- Jerry's relative x and y position; and
+- Tom's x and y velocity.
+
+The policy outputs two continuous actions. They become world-frame x/y forces
+through Isaac Lab's permanent wrench composer. The reward favors progress,
+adds a 12-point catch bonus, and penalizes distance, excessive action, elapsed
+steps, and leaving the arena. A* is not used anywhere in this task.
+
+The official Isaac Lab 3.0 kitless image required CUDA 13, while the Brev host
+driver exposed CUDA 12.7 compatibility. `infra/Dockerfile.isaaclab-cuda-compat`
+installs NVIDIA's `cuda-compat-13-0` package in a derived image; the host was
+not modified or rebooted. The resulting container verified `CUDA_AVAILABLE
+True` and identified the GPU as an NVIDIA L40S.
+
+An 80-iteration PPO run using RSL-RL 5.5.1 and NVIDIA Newton MJWarp 1.6.1
+completed in 29.1 seconds. The final training batch reported a 1.0 catch rate,
+but that number alone is not treated as proof. A separate fixed-seed evaluation
+loaded `model_79.pt` and produced:
+
+| Metric | Result |
+| --- | ---: |
+| Evaluation seed | 20261101 |
+| Parallel environments | 64 |
+| Completed episodes | 513 |
+| Catches | 511 |
+| Catch success rate | 99.61% |
+| Out-of-bounds failures | 2 |
+| Mean successful catch time | 0.7282 s |
+
+These results demonstrate learning only for the easy, obstacle-free,
+stationary-target curriculum. They do not demonstrate obstacle avoidance or
+generalization to moving Jerry. Those claims remain for later curriculum and
+Stage 6 tests.
+
+Live playback uses Isaac Lab's Viser visualizer through a Brev-authenticated
+HTTPS route. This lightweight Newton view works despite the VM's RTX WebRTC
+NAT limitation. It shows nine policy-controlled rooms and provides pause,
+reset, and live-plot controls; it is not the photorealistic Isaac Sim RTX
+viewport.
+
+Reviewed results are preserved in `experiments/stage5/`. Large checkpoints and
+TensorBoard event files remain under the ignored `work/isaaclab_logs/` folder
+on Brev.

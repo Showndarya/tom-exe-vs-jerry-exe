@@ -1,0 +1,3 @@
+phase,seed,num_parallel_envs,iterations,episodes_completed,total_environment_steps,catch_count,catch_success_rate,out_of_bounds_count,mean_catch_time_s,final_mean_reward,wall_time_s,checkpoint_iteration
+training,42,64,80,,122880,,1.0,0,,16.28,29.1,79
+evaluation,20261101,64,,513,24320,511,0.9961013645224172,2,0.728180080352968,,,79
