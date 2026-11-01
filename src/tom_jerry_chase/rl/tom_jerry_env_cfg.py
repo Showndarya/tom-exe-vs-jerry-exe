@@ -51,13 +51,11 @@ class TomJerrySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Tom",
         spawn=sim_utils.SphereCfg(
             radius=0.38,
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(
-                disable_gravity=True,
-                linear_damping=3.0,
-                angular_damping=3.0,
-                max_linear_velocity=3.5,
-                max_angular_velocity=1.0,
-            ),
+            # Isaac Lab 3.0 composes advanced rigid-body properties through
+            # schema fragments.  The backend-neutral base config deliberately
+            # contains only enable/kinematic flags, so gravity and damping use
+            # Newton's defaults for this first task.
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             mass_props=sim_utils.MassCfg(mass=1.0),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(
