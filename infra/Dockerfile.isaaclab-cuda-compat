@@ -1,0 +1,22 @@
+# Isaac Lab 3.0 uses CUDA 13.0, while the current Brev image has an R565
+# host driver.  NVIDIA supports forward compatibility on L40S data-center
+# GPUs through the official cuda-compat package.  Keeping it in a derived
+# image avoids changing or rebooting the host.
+FROM nvcr.io/nvidia/isaac-lab:3.0.0-kitless
+
+USER root
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates wget \
+    && wget --quiet \
+        https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb \
+        --output-document=/tmp/cuda-keyring.deb \
+    && dpkg --install /tmp/cuda-keyring.deb \
+    && rm /tmp/cuda-keyring.deb \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends cuda-compat-13-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LD_LIBRARY_PATH=/usr/local/cuda-13.0/compat:/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+
+USER isaaclab
