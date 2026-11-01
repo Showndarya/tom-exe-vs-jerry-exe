@@ -125,10 +125,10 @@ class TomJerryMovingSceneCfg(TomJerrySceneCfg):
             radius=0.26,
             # Jerry is intentionally non-colliding.  The task detects a catch
             # from distance, while the environment prescribes Jerry's pose and
-            # velocity every control step.  This stays backend-neutral in the
-            # Isaac Lab 3 tensor API and prevents Tom from physically punting
-            # the target across the room.
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            # velocity every control step.  Kinematic mode makes that ownership
+            # explicit: gravity cannot rotate Jerry between scripted updates,
+            # and Tom cannot physically punt him across the room.
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.25),
             # Newton uses this disabled collider to derive a valid sphere
             # inertia tensor without allowing Tom/Jerry contact forces.
@@ -263,7 +263,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
             radius=0.15,
             height=0.30,
             axis="Z",
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.02),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
@@ -278,7 +278,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
             radius=0.15,
             height=0.30,
             axis="Z",
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.02),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
@@ -291,7 +291,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
         prim_path="{ENV_REGEX_NS}/TomMuzzle",
         spawn=sim_utils.SphereCfg(
             radius=0.14,
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.02),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
@@ -304,7 +304,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
         prim_path="{ENV_REGEX_NS}/JerryEarLeft",
         spawn=sim_utils.SphereCfg(
             radius=0.12,
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.01),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
@@ -317,7 +317,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
         prim_path="{ENV_REGEX_NS}/JerryEarRight",
         spawn=sim_utils.SphereCfg(
             radius=0.12,
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.01),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
@@ -332,7 +332,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
             radius=0.035,
             height=0.48,
             axis="Z",
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=0.01),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
@@ -346,7 +346,7 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
         prim_path="{ENV_REGEX_NS}/Room/Sweeper",
         spawn=sim_utils.CuboidCfg(
             size=(0.8, 1.3, 0.8),
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassCfg(mass=30.0),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(
