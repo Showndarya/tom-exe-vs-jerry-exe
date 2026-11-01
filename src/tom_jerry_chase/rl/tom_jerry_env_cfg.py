@@ -169,7 +169,7 @@ class TomJerryRoomPhysicsCfg(TomJerryPhysicsCfg):
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=12,
+            njmax=32,
             nconmax=8,
             cone="pyramidal",
             impratio=1,
