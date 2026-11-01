@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import omni.usd
-from pxr import Gf, Usd, UsdGeom, UsdLux, UsdPhysics
+from pxr import Gf, PhysxSchema, Usd, UsdGeom, UsdLux, UsdPhysics
 
 
 ROOM_WIDTH = 12.0
@@ -153,7 +153,8 @@ def build_scene(output_path: Path) -> Usd.Stage:
     physics_scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(0.0, 0.0, -1.0))
     physics_scene.CreateGravityMagnitudeAttr(9.81)
-    physics_scene.CreateTimeStepsPerSecondAttr(PHYSICS_HZ)
+    physx_scene = PhysxSchema.PhysxSceneAPI.Apply(physics_scene.GetPrim())
+    physx_scene.CreateTimeStepsPerSecondAttr(PHYSICS_HZ)
 
     add_box(stage, "/World/Floor", (0.0, 0.0, -0.10), (ROOM_WIDTH, ROOM_DEPTH, 0.20), (0.94, 0.86, 0.58))
 
