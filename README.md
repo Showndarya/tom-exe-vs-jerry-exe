@@ -10,6 +10,8 @@ we compare direct pursuit, A* path planning, and a PPO policy honestly.
 - [x] Isaac Sim 6.2 compatibility check passed
 - [x] Full headless Isaac Sim runtime reached `app ready`
 - [x] Stage 2 primitive room, Tom, and Jerry
+- [x] Authenticated Brev viewer endpoint configured
+- [ ] Browser stream visually verified
 - [ ] Stage 3 direct-pursuit baseline
 - [ ] Stage 4 A* planner
 - [ ] Stage 5 Isaac Lab PPO environment and training attempt
@@ -28,6 +30,7 @@ we compare direct pursuit, A* path planning, and a PPO policy honestly.
 
 ```text
 src/tom_jerry_chase/   Isaac Sim and Isaac Lab source code
+infra/                 Docker Compose overrides for cloud streaming
 docs/                  Setup and architecture notes
 experiments/           Reproducible configurations and CSV results
 outputs/               User-facing deliverables
@@ -51,3 +54,47 @@ The generated USDA was then checked for `/World/PhysicsScene`, `/World/Tom`,
 and `/World/Jerry`. Detailed setup and repeatable run commands will continue to
 be added as each milestone is verified on the Brev GPU rather than written
 speculatively.
+
+## Secure Brev streaming
+
+The official Isaac Sim Docker Compose viewer uses three ports:
+
+| Port | Protocol | Purpose |
+| --- | --- | --- |
+| 8210 | TCP | Web viewer |
+| 49100 | TCP | WebRTC signaling |
+| 47998 | UDP | WebRTC media |
+
+The web page is exposed through a Brev-authenticated HTTPS endpoint. The raw
+WebRTC ports are restricted on the VM itself to the current client IP. Do not
+leave unauthenticated streaming ports open without that host firewall.
+
+Create the authenticated viewer route:
+
+```bash
+brev ports open tom-exe-jerry-exe 8210 --protocol http --json
+```
+
+Set `WEB_VIEWER_ALLOWED_HOST` to the hostname returned by Brev, without the
+`https://` prefix. The override passes that exact hostname to Vite instead of
+allowing every host:
+
+```bash
+WEB_VIEWER_ALLOWED_HOST="<authenticated-viewer-host>" \
+ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0 \
+ISAACSIM_HOST="<brev-public-ip>" \
+ISAAC_SIM_DATA=/home/ubuntu/docker/isaac-sim \
+docker compose -p tomjerry \
+  -f /home/ubuntu/isaacsim-streaming/tools/docker/docker-compose.yml \
+  -f /home/ubuntu/tom-exe-vs-jerry-exe/infra/docker-compose.stream.override.yml \
+  up --build -d
+```
+
+The temporary `iptables` rules used during development allow only
+`<current-client-ip>/32` to the three streaming ports, followed by a drop rule
+for every other source. These rules are deliberately not persisted across a
+VM reboot; verify and reapply them whenever the instance or client network
+changes.
+
+The Brev L40S used for this project costs `$1.79/hour` in the selected region.
+Stop the VM whenever development pauses so credits are not consumed while idle.

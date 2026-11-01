@@ -1,0 +1,10 @@
+services:
+  isaac-sim:
+    volumes:
+      - /home/ubuntu/tom-exe-vs-jerry-exe:/workspace:rw
+    command:
+      - /workspace/output/tom_jerry_stage2.usda
+
+  web-viewer:
+    environment:
+      - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${WEB_VIEWER_ALLOWED_HOST:-}
