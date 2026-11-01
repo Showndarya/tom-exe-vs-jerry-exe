@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tom-jerry-chase"
+version = "0.1.0"
+description = "Tom.exe vs Jerry.exe robotics baselines and Isaac Lab tasks"
+requires-python = ">=3.12"
+
+[project.entry-points."isaaclab.tasks"]
+tom_jerry_chase = "tom_jerry_chase.rl"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
