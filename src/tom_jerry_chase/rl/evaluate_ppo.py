@@ -119,6 +119,7 @@ def main() -> None:
         completed = 0
         successes = 0.0
         out_of_bounds = 0.0
+        collision_events = 0.0
         catch_time_sum = 0.0
         vector_steps = 0
         max_vector_steps = (
@@ -138,17 +139,22 @@ def main() -> None:
                 catch_rate = scalar(log.get("Metrics/catch_rate", 0.0))
                 out_rate = scalar(log.get("Metrics/out_of_bounds_rate", 0.0))
                 mean_catch_time = scalar(log.get("Metrics/mean_catch_time_s", 0.0))
+                mean_collision_events = scalar(
+                    log.get("Metrics/mean_collision_events", 0.0)
+                )
                 step_successes = catch_rate * done_count
 
                 completed += done_count
                 successes += step_successes
                 out_of_bounds += out_rate * done_count
+                collision_events += mean_collision_events * done_count
                 catch_time_sum += mean_catch_time * step_successes
 
         wrapped.close()
 
     successes_int = int(round(successes))
     out_of_bounds_int = int(round(out_of_bounds))
+    collision_events_int = int(round(collision_events))
     # Vectorized environments can finish several episodes on the final step,
     # so report the exact number observed rather than silently discarding them.
     evaluated = completed
@@ -168,6 +174,10 @@ def main() -> None:
         "catch_success_rate": successes_int / evaluated if evaluated else 0.0,
         "out_of_bounds_count": out_of_bounds_int,
         "time_out_count": time_outs_int,
+        "collision_event_count": collision_events_int,
+        "mean_collision_events_per_episode": (
+            collision_events / evaluated if evaluated else 0.0
+        ),
         "mean_catch_time_s": catch_time_sum / successes if successes else None,
         "vector_steps": vector_steps,
     }
@@ -179,6 +189,7 @@ def main() -> None:
         f"success_rate={result['catch_success_rate']:.4f} "
         f"out_of_bounds={out_of_bounds_int} "
         f"time_outs={time_outs_int} "
+        f"collision_events={collision_events_int} "
         f"mean_catch_time_s={result['mean_catch_time_s']:.4f}",
         flush=True,
     )
