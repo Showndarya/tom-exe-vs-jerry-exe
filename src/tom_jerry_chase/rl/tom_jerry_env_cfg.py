@@ -300,8 +300,8 @@ class TomJerryRoomEnvCfg(TomJerryMovingEnvCfg):
     collision_penalty = 1.0
     room_catch_bonus = 32.0
     curriculum_enabled = True
-    curriculum_warmup_steps = 1200
-    curriculum_ramp_steps = 1800
+    curriculum_warmup_steps = 7200
+    curriculum_ramp_steps = 4800
 
     def __post_init__(self):
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(11.0, -11.0, 8.5))

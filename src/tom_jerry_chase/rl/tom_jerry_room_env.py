@@ -228,6 +228,10 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         reward = super()._get_rewards()
+        self.extras.setdefault("log", {})["Metrics/difficulty"] = torch.tensor(
+            self._difficulty,
+            device=self.device,
+        )
         caught = torch.linalg.vector_norm(self._relative_target(), dim=-1) <= self.cfg.catch_radius
         collision = self._collision_mask()
         new_collision = collision & ~self._in_collision

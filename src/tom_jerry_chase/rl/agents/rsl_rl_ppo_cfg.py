@@ -56,7 +56,7 @@ class TomJerryMovingPPORunnerCfg(TomJerryEasyPPORunnerCfg):
 class TomJerryRoomPPORunnerCfg(TomJerryEasyPPORunnerCfg):
     """Larger policy for the fixed-map room and moving sweeper."""
 
-    max_iterations = 500
+    max_iterations = 900
     experiment_name = "tom_jerry_room"
     actor = RslRlMLPModelCfg(
         hidden_dims=[128, 128],
