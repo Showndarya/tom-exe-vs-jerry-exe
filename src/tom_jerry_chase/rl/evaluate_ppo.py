@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate a Tom chase PPO policy.")
     parser.add_argument(
         "--curriculum",
-        choices=("easy", "moving"),
+        choices=("easy", "moving", "room"),
         default="easy",
         help="Environment and checkpoint family to evaluate.",
     )
@@ -72,14 +72,20 @@ def main() -> None:
     from tom_jerry_chase.rl.agents.rsl_rl_ppo_cfg import (
         TomJerryEasyPPORunnerCfg,
         TomJerryMovingPPORunnerCfg,
+        TomJerryRoomPPORunnerCfg,
     )
     from tom_jerry_chase.rl.tom_jerry_env_cfg import (
         TomJerryEasyEnvCfg,
         TomJerryMovingEnvCfg,
-        TomJerryPhysicsCfg,
+        TomJerryRoomEnvCfg,
     )
 
-    if args.curriculum == "moving":
+    if args.curriculum == "room":
+        task_id = "TomJerry-Chase-Room-Direct"
+        experiment_name = "tom_jerry_room"
+        env_cfg = TomJerryRoomEnvCfg()
+        agent_cfg = TomJerryRoomPPORunnerCfg()
+    elif args.curriculum == "moving":
         task_id = "TomJerry-Chase-Moving-Direct"
         experiment_name = "tom_jerry_moving"
         env_cfg = TomJerryMovingEnvCfg()
@@ -96,7 +102,7 @@ def main() -> None:
     checkpoint = resolve_checkpoint(args.checkpoint, log_root)
     # The unified Isaac Lab CLI resolves PresetCfg selectors before launch.
     # This standalone evaluator must choose the concrete backend itself.
-    env_cfg.sim.physics = TomJerryPhysicsCfg().newton_mjwarp
+    env_cfg.sim.physics = env_cfg.sim.physics.newton_mjwarp
     env_cfg.scene.num_envs = args.num_envs
     env_cfg.seed = args.seed
     agent_cfg.seed = args.seed

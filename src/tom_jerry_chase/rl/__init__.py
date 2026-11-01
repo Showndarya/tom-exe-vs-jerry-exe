@@ -20,6 +20,20 @@ gym.register(
 
 
 gym.register(
+    id="TomJerry-Chase-Room-Direct",
+    entry_point=f"{__name__}.tom_jerry_room_env:TomJerryRoomEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.tom_jerry_env_cfg:TomJerryRoomEnvCfg",
+        "rsl_rl_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:TomJerryRoomPPORunnerCfg"
+        ),
+        "default_agent": "rsl_rl",
+    },
+)
+
+
+gym.register(
     id="TomJerry-Chase-Moving-Direct",
     entry_point=f"{__name__}.tom_jerry_moving_env:TomJerryMovingEnv",
     disable_env_checker=True,

@@ -51,3 +51,22 @@ class TomJerryMovingPPORunnerCfg(TomJerryEasyPPORunnerCfg):
     max_iterations = 160
     experiment_name = "tom_jerry_moving"
 
+
+@configclass
+class TomJerryRoomPPORunnerCfg(TomJerryEasyPPORunnerCfg):
+    """Larger policy for the fixed-map room and moving sweeper."""
+
+    max_iterations = 300
+    experiment_name = "tom_jerry_room"
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[128, 128],
+        activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.9),
+    )
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[128, 128],
+        activation="elu",
+        obs_normalization=True,
+    )
+

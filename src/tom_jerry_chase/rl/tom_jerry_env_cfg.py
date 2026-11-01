@@ -162,3 +162,143 @@ class TomJerryMovingEnvCfg(TomJerryEasyEnvCfg):
     reset_radius_min = 1.6
     reset_radius_max = 2.9
 
+
+@configclass
+class TomJerryRoomPhysicsCfg(TomJerryPhysicsCfg):
+    """Newton capacity for walls, interior barriers, and a moving sweeper."""
+
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=12,
+            nconmax=8,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default: NewtonCfg = newton_mjwarp
+
+
+@configclass
+class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
+    """A colorful enclosed room with two routes and a moving blocker."""
+
+    north_wall = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Room/NorthWall",
+        spawn=sim_utils.CuboidCfg(
+            size=(8.4, 0.3, 1.2),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.28, 0.72, 0.92), roughness=0.7
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 4.05, 0.60)),
+    )
+    south_wall = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Room/SouthWall",
+        spawn=sim_utils.CuboidCfg(
+            size=(8.4, 0.3, 1.2),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.28, 0.72, 0.92), roughness=0.7
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -4.05, 0.60)),
+    )
+    east_wall = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Room/EastWall",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.3, 7.8, 1.2),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.28, 0.72, 0.92), roughness=0.7
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(4.05, 0.0, 0.60)),
+    )
+    west_wall = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Room/WestWall",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.3, 7.8, 1.2),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.28, 0.72, 0.92), roughness=0.7
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-4.05, 0.0, 0.60)),
+    )
+    tall_barrier = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Room/TallBarrier",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.45, 3.8, 1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.66, 0.30, 0.84), roughness=0.65
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.0, 1.0, 0.50)),
+    )
+    low_barrier = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Room/LowBarrier",
+        spawn=sim_utils.CuboidCfg(
+            size=(3.6, 0.45, 1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.92, 0.36, 0.58), roughness=0.65
+            ),
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.2, -1.0, 0.50)),
+    )
+    sweeper: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Room/Sweeper",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.8, 1.3, 0.8),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=30.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(1.0, 0.76, 0.04), metallic=0.05, roughness=0.5
+            ),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.5, -2.0, 0.40)),
+    )
+
+
+@configclass
+class TomJerryRoomEnvCfg(TomJerryMovingEnvCfg):
+    """Third curriculum step: a fixed full room plus a dynamic obstacle."""
+
+    episode_length_s = 8.0
+    observation_space = 12
+    sim: SimulationCfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        render_interval=2,
+        physics=TomJerryRoomPhysicsCfg(),
+    )
+    scene: TomJerryRoomSceneCfg = TomJerryRoomSceneCfg(
+        num_envs=256,
+        env_spacing=10.0,
+        replicate_physics=True,
+        clone_in_fabric=True,
+    )
+
+    force_scale = 9.0
+    max_speed = 4.0
+    arena_half_extent = 3.85
+    catch_radius = 0.56
+    jerry_route_half_extent = 2.8
+    jerry_route_speed = 1.25
+    jerry_max_speed = 1.25
+    sweeper_center_x = -1.5
+    sweeper_amplitude = 0.9
+    sweeper_y = -2.0
+    sweeper_angular_speed = 1.0
+    sweeper_max_speed = 0.9
+    collision_penalty = 1.5
+
+    def __post_init__(self):
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(11.0, -11.0, 8.5))
+
