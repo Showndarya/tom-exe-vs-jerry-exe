@@ -102,8 +102,13 @@ class TomJerryEasyEnv(DirectRLEnv):
 
         success = self._caught[env_ids].float()
         failure = self._out_of_bounds[env_ids].float()
+        episode_seconds = self.episode_length_buf[env_ids].float() * self.step_dt
+        mean_catch_time = torch.sum(episode_seconds * success) / torch.clamp(
+            torch.sum(success), min=1.0
+        )
         self.extras.setdefault("log", {})["Metrics/catch_rate"] = success.mean()
         self.extras.setdefault("log", {})["Metrics/out_of_bounds_rate"] = failure.mean()
+        self.extras.setdefault("log", {})["Metrics/mean_catch_time_s"] = mean_catch_time
 
         super()._reset_idx(env_ids)
 
