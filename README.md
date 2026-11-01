@@ -1,387 +1,310 @@
 # Tom.exe vs Jerry.exe — The Great AI Chase
 
-A playful robotics project built with NVIDIA Isaac Sim 6.2 and Isaac Lab 3.0.
-Original geometric characters chase through a tiny obstacle-filled room while
-we compare direct pursuit, A* path planning, and a PPO policy honestly.
+![Isaac Sim 6.2](https://img.shields.io/badge/Isaac%20Sim-6.2-76B900?logo=nvidia&logoColor=white)
+![Isaac Lab 3.0](https://img.shields.io/badge/Isaac%20Lab-3.0-76B900?logo=nvidia&logoColor=white)
+![Newton MJWarp 1.6.1](https://img.shields.io/badge/Newton%20MJWarp-1.6.1-5C3EE8)
+![PPO with RSL--RL](https://img.shields.io/badge/PPO-RSL--RL%205.5.1-FF6B35)
+![Tests](https://img.shields.io/badge/tests-12%20passing-2EA44F)
 
-## Current milestone
+**A playful robotics project that asks one serious question: how should an
+agent chase a moving target when walls keep getting in the way?**
 
-- [x] NVIDIA Brev L40S provisioned and secured
-- [x] Isaac Sim 6.2 compatibility check passed
-- [x] Full headless Isaac Sim runtime reached `app ready`
-- [x] Stage 2 primitive room, Tom, and Jerry
-- [x] Stage 2 RTX PNG render verified on the L40S
-- [x] Authenticated Brev viewer endpoint configured
-- [x] Authenticated live Newton/Viser browser visualization verified
-- [x] Stage 3 direct-pursuit baseline and animated RTX replay
-- [x] Stage 4 A* planner with moving-target and blocked-route replanning
-- [x] Stage 5 easy Isaac Lab PPO environment, training, playback, and evaluation
-- [ ] Stage 6 reproducible comparison
-- [ ] Stage 7 portfolio documentation and demo
+Tom is a blue physics-driven robot. Jerry is an orange scripted target. They
+race through small rooms built entirely from original geometric primitives—no
+downloaded character models, rigging, or copyrighted assets. The project
+implements three progressively more capable approaches:
 
-## Design principles
+1. direct pursuit, which runs straight at Jerry;
+2. A* pathfinding, which searches around known obstacles; and
+3. PPO reinforcement learning, which learns continuous forces from reward.
 
-- Use only original geometric characters and simple materials.
-- Keep path planning distinct from reinforcement learning.
-- Record fixed seeds and real metrics; never invent convergence.
-- Keep cloud endpoints private and avoid idle GPU cost.
-- Build the simplest working version before adding complexity.
+The simulation runs on an NVIDIA L40S in Brev. An Apple Silicon Mac acts as
+the development machine while Isaac Sim, Isaac Lab, Newton physics, training,
+evaluation, and rendering stay on the cloud GPU.
 
-## Repository layout
+## Results at a glance
 
-```text
-src/tom_jerry_chase/   Isaac Sim and Isaac Lab source code
-infra/                 Docker Compose overrides for cloud streaming
-docs/                  Setup and architecture notes
-experiments/           Reproducible configurations and CSV results
-outputs/               User-facing deliverables
-```
+These are measured results from fixed-seed runs, not hand-authored demo
+outcomes.
 
-## Verified Stage 2 result
+| Stage | Method | Challenge | Verified result |
+| --- | --- | --- | --- |
+| 3 | Direct pursuit | Moving Jerry with an obstructed straight line | Failed to catch; 1 collision and 14 stuck frames |
+| 4 | A* | Known map plus a surprise wall | Caught in 11.4 s; 14 replans; 0 collisions |
+| 5A | PPO | Stationary Jerry, open arena | 511 / 513 catches — **99.61%** |
+| 5B | PPO | Figure-eight Jerry | 455 / 512 catches — **88.87%** |
+| 5C | PPO | Fixed full room plus moving sweeper | 332 / 512 catches — **64.84%** |
 
-`src/tom_jerry_chase/scene_stage2.py` builds a 12 m × 9 m room from OpenUSD
-primitives. It includes four collidable walls, two route-splitting obstacles,
-a blue capsule cat, an orange sphere mouse, rigid bodies, gravity, lighting,
-and a camera.
+The Stage 3 and Stage 4 demonstrations use different controller speeds and
+termination conditions, so the table is a milestone summary—not a fair
+head-to-head benchmark. A same-layout, same-speed comparison remains Stage 6
+work.
 
-The scene was executed inside the official Isaac Sim 6.2 container on the Brev
-L40S. Its self-check reported:
+### PPO curriculum
 
-```text
-STAGE2_OK path=/workspace/output/tom_jerry_stage2.usda prims=37 physics_hz=60
-```
+| Curriculum | Training iterations | Environment steps | Independent evaluation | Mean catch time |
+| --- | ---: | ---: | ---: | ---: |
+| Easy | 80 | 122,880 | 99.61% | 0.7282 s |
+| Moving Jerry | 160 | 245,760 | 88.87% | 1.0660 s |
+| Full room | 900 | 1,382,400 | 64.84% | 5.4653 s |
 
-The generated USDA was then checked for `/World/PhysicsScene`, `/World/Tom`,
-and `/World/Jerry`. Detailed setup and repeatable run commands will continue to
-be added as each milestone is verified on the Brev GPU rather than written
-speculatively.
+The first two full-room attempts produced **zero catches**. They remain in the
+experiment record. The final curriculum used a 300-iteration warm-up, a
+200-iteration difficulty ramp, and 400 iterations at full difficulty. The
+64.84% result shows partial learning in one fixed room; it does **not** prove
+generalization to unseen layouts.
 
-### Verified headless RTX render
+Full-precision outputs live in
+[`experiments/stage5/`](experiments/stage5/), including the seed, checkpoint
+iteration, failures, collision events, and dependency versions.
 
-Interactive streaming and rendering are separate pieces. The livestream
-extension can fail while Isaac Sim's RTX renderer and the simulation remain
-healthy. `src/tom_jerry_chase/render_stage2.py` opens the saved USD stage,
-creates a Replicator camera and RGB writer, and saves three PNG frames using
-the L40S GPU.
-
-The following command was executed successfully on the Brev VM. It reuses the
-workspace volume from the Compose-created Isaac Sim container, which may be
-stopped while the one-off renderer runs:
-
-```bash
-docker run --gpus all --rm --name tomjerry-stage2-render \
-  --shm-size=2g \
-  --volumes-from tomjerry-isaac-sim-1 \
-  -e ACCEPT_EULA=Y \
-  -e PRIVACY_CONSENT=Y \
-  --entrypoint /isaac-sim/python.sh \
-  nvcr.io/nvidia/isaac-sim:6.2.0 \
-  /workspace/src/tom_jerry_chase/render_stage2.py
-```
-
-The verification marker and final image path were:
+## How the system fits together
 
 ```text
-STAGE2_RENDER_OK image=/workspace/output/stage2_render/rgb_0002.png frames=3
+ scripted Jerry ── pose + velocity ─┐
+                                    │
+ room + sweeper ── geometry ────────┼──> observation vector
+                                    │           │
+ dynamic Tom ──── velocity ─────────┘           v
+                                         controller / policy
+                                       direct | A* | PPO
+                                                │
+                                                v
+                                      x/y velocity or force
+                                                │
+                                                v
+                                    Isaac Sim / Newton physics
+                                                │
+                              collisions, distance, catches, resets
+                                                │
+                              PPO only: reward + next observation
 ```
 
-The render script follows NVIDIA's
-[Replicator writer workflow](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/replicator_tutorials/tutorial_replicator_isaac_snippets.html).
+Pathfinding and reinforcement learning are intentionally kept separate. A*
+receives an occupancy grid and searches it. PPO receives numbers describing
+the current state and optimizes a policy from experience. The PPO policy does
+not call A* internally.
 
-## Secure Brev streaming
+## The three Toms
 
-The official Isaac Sim Docker Compose viewer uses three ports:
+### Dumb Tom — direct pursuit
 
-| Port | Protocol | Purpose |
-| --- | --- | --- |
-| 8210 | TCP | Web viewer |
-| 49100 | TCP | WebRTC signaling |
-| 47998 | UDP | WebRTC media |
+Tom observes only Jerry's relative position and points straight at it. This is
+a useful baseline because its failure is easy to explain: Tom has no map and
+cannot reason about going around a wall. PhysX stops the body at the obstacle,
+but the controller keeps asking it to move forward.
 
-The web page is exposed through a Brev-authenticated HTTPS endpoint. The raw
-WebRTC ports are restricted on the VM itself to the current client IP. Do not
-leave unauthenticated streaming ports open without that host firewall.
+Verified seed-7 result: final distance 6.6032 m, one collision, 14 stuck
+frames, and no catch. See
+[`experiments/stage3/direct_pursuit_summary.json`](experiments/stage3/direct_pursuit_summary.json).
 
-Create one authenticated route for the viewer. The viewer proxies the
-`/sign_in` WebSocket path to Isaac Sim inside Docker, following NVIDIA's HTTPS
-deployment pattern:
+### Planning Tom — A*
+
+The room becomes a 0.5 m occupancy grid. Free cells are graph nodes; cardinal
+moves are edges. Obstacles are inflated by 0.58 m so the route leaves room for
+Tom's collider. A* minimizes:
+
+```text
+f(n) = g(n) + h(n)
+```
+
+`g(n)` is the route cost already traveled and `h(n)` is Manhattan distance to
+Jerry. When a yellow surprise wall appears, Tom discards the blocked route and
+searches again.
+
+Verified seed-7 result: catch in 11.4 s, 14 replans, and zero collisions. See
+[`experiments/stage4/astar_summary.json`](experiments/stage4/astar_summary.json).
+
+### Learning Tom — PPO
+
+The Isaac Lab tasks use continuous control. The policy emits two values in
+`[-1, 1]`; they become x/y forces on Tom. The hardest task exposes 13
+observations covering Jerry, Tom, the moving sweeper, room position, and
+curriculum difficulty.
+
+The reward combines progress toward Jerry, a catch bonus, distance cost,
+action cost, collision penalty, time cost, and arena-boundary penalty. Episode
+resets randomize the starting configuration while fixed evaluation seeds make
+comparisons repeatable.
+
+## What works today
+
+- [x] Brev L40S setup with authenticated browser access
+- [x] Isaac Sim 6.2 scene generation and headless RTX frames
+- [x] Direct-pursuit baseline with contact-event metrics
+- [x] A* planning with obstacle inflation and replanning
+- [x] Isaac Lab 3.0 custom `DirectRLEnv` tasks
+- [x] NVIDIA Newton MJWarp physics on the cloud GPU
+- [x] Easy, moving-target, and full-room PPO curricula
+- [x] Fixed-seed evaluation with catch, timeout, OOB, time, and collision metrics
+- [x] Lightweight live Viser playback for the Newton room
+- [x] Twelve local unit tests for controller, planner, and reward logic
+- [ ] Same-layout direct/A*/PPO comparison
+- [ ] Randomized-room training and unseen-layout evaluation
+- [ ] Final narrated demo video
+
+## Repository map
+
+```text
+.
+├── src/tom_jerry_chase/
+│   ├── scene_stage2.py              # primitive Isaac Sim room
+│   ├── render_stage2.py             # headless RTX capture
+│   ├── stage3_direct_pursuit.py      # baseline controller
+│   ├── grid_planner.py              # occupancy grid + A*
+│   ├── stage4_astar.py               # replanning simulation
+│   └── rl/
+│       ├── tom_jerry_env_cfg.py      # Isaac Lab scene/task configs
+│       ├── tom_jerry_*_env.py        # easy, moving, and room tasks
+│       ├── evaluate_ppo.py           # fixed-seed evaluation
+│       └── agents/                   # RSL-RL PPO configuration
+├── experiments/                      # reviewed JSON/CSV evidence
+├── infra/                            # cloud/container compatibility files
+├── tests/                            # fast CPU-only unit tests
+└── pyproject.toml                    # Isaac Lab task registration
+```
+
+Large checkpoints, TensorBoard logs, frame sequences, and local cloud scratch
+files are intentionally ignored.
+
+## Reproduce it
+
+### 1. Run the fast tests locally
+
+The planner, controller, and reward tests do not require Isaac Sim:
 
 ```bash
-brev ports open tom-exe-jerry-exe 8210 --protocol http --json
+git clone https://github.com/Showndarya/tom-exe-vs-jerry-exe.git
+cd tom-exe-vs-jerry-exe
+PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-Set both `WEB_VIEWER_ALLOWED_HOST` and `ISAACSIM_SIGNAL_HOST` to the same
-viewer hostname returned by Brev, without the `https://` prefix. The custom
-viewer keeps the page and signaling channel on one HTTPS/WSS origin while
-sending media to the VM's IP-restricted UDP port. Port `49100` does not need a
-separate Brev route:
+Expected result: `Ran 12 tests ... OK`.
+
+### 2. Prepare the Isaac Lab container on an NVIDIA GPU
+
+Isaac Sim and Isaac Lab do not run natively on Apple Silicon. Use a Linux host
+with an NVIDIA GPU. This project used one L40S with 48 GB VRAM.
+
+The official Isaac Lab 3.0 kitless image uses CUDA 13. The tested Brev host had
+an R565 driver, so the derived image installs NVIDIA's forward-compatibility
+package without modifying or rebooting the host:
 
 ```bash
-WEB_VIEWER_ALLOWED_HOST="<authenticated-viewer-host>" \
-ISAACSIM_SIGNAL_HOST="<authenticated-viewer-host>" \
-ISAACSIM_SIGNAL_PORT=443 \
-ISAACSIM_FORCE_WSS=true \
-ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0 \
-ISAACSIM_HOST="<brev-public-ip>" \
-ISAAC_SIM_DATA=/home/ubuntu/docker/isaac-sim \
-docker compose -p tomjerry \
-  -f /home/ubuntu/isaacsim-streaming/tools/docker/docker-compose.yml \
-  -f /home/ubuntu/tom-exe-vs-jerry-exe/infra/docker-compose.stream.override.yml \
-  up --build -d
+docker build \
+  --file infra/Dockerfile.isaaclab-cuda-compat \
+  --tag tomjerry-isaaclab:3.0.0-r565-compat \
+  .
 ```
 
-The tested Brev VM reached the viewer login but did not start Isaac Sim's
-primary stream server. Isaac Sim logged `NVST_R_INTERNAL_ERROR` and
-`Failed to start the primary stream server`, so port `49100` never listened
-and the browser correctly remained at **Waiting for stream**. This is a
-server-side livestream/driver compatibility issue, not an authentication
-failure. The scene itself still runs and renders on the GPU; use the verified
-headless render path below while the VM image is on its current R565 driver.
-
-The temporary `iptables` rules used during development allow only
-`<current-client-ip>/32` to the three streaming ports, followed by a drop rule
-for every other source. These rules are deliberately not persisted across a
-VM reboot; verify and reapply them whenever the instance or client network
-changes.
-
-The Brev L40S used for this project costs `$1.79/hour` in the selected region.
-Stop the VM whenever development pauses so credits are not consumed while idle.
-
-## Verified Stage 3 result: Dumb Tom
-
-`src/tom_jerry_chase/stage3_direct_pursuit.py` turns the Stage 2 characters
-into moving rigid bodies. Jerry follows a fixed waypoint loop. On every frame,
-Tom observes only the relative position `(jerry_x - tom_x, jerry_y - tom_y)`
-and commands a constant-speed velocity pointing directly at Jerry.
-
-This is a hand-written controller, not A* and not machine learning. Tom has no
-map or obstacle observation, so it cannot reason about going around a wall.
-PhysX still resolves the collision, which means Tom pushes into the obstacle
-instead of passing through it.
-
-Run the experiment in the official Isaac Sim 6.2 container:
+Inside the container, install this package so Isaac Lab discovers its task
+entry point:
 
 ```bash
-docker run --gpus all --rm --name tomjerry-stage3 \
-  --shm-size=2g \
-  --volumes-from tomjerry-isaac-sim-1 \
-  -e ACCEPT_EULA=Y \
-  -e PRIVACY_CONSENT=Y \
-  -e PYTHONPATH=/workspace/src \
-  --entrypoint /isaac-sim/python.sh \
-  nvcr.io/nvidia/isaac-sim:6.2.0 \
-  /workspace/src/tom_jerry_chase/stage3_direct_pursuit.py
+/opt/isaaclab-venv/bin/python -m pip install --no-deps -e /workspace/project
 ```
 
-The fixed-seed Brev run produced these actual results:
+### 3. Train the easy PPO task
 
-| Metric | Result |
-| --- | ---: |
-| Random seed | 7 |
-| Simulated time | 8.0 s |
-| Rendered frames | 120 |
-| Initial Tom–Jerry distance | 8.7818 m |
-| Final Tom–Jerry distance | 6.60316 m |
-| Obstacle/wall collisions | 1 |
-| Stuck frames | 14 |
-| Caught Jerry | No |
+```bash
+isaaclab train \
+  --rl_library rsl_rl \
+  --task TomJerry-Chase-Easy-Direct \
+  --num_envs 64 \
+  --max_iterations 80 \
+  presets=newton_mjwarp
+```
 
-The raw per-frame CSV, JSON summary, PNG frames, and animated GIF were written
-to `/workspace/output/stage3_direct_pursuit/` on the Brev instance. The reviewed
-summary is preserved in `experiments/stage3/direct_pursuit_summary.json`.
+### 4. Evaluate a saved policy
 
-### Collision detection
+```bash
+/opt/isaaclab-venv/bin/python \
+  /workspace/project/src/tom_jerry_chase/rl/evaluate_ppo.py \
+  --curriculum room \
+  --num-envs 64 \
+  --episodes 512 \
+  --seed 20261101 \
+  --output /workspace/project/work/stage5_room_eval.json
+```
 
-Tom uses PhysX contact reports. A contact callback receives `CONTACT_FOUND`
-and `CONTACT_LOST` events, identifies pairs involving Tom and a wall or
-obstacle, and counts each newly formed contact once. This follows NVIDIA's
-[PhysX contact report workflow](https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.1/extensions/runtime/source/omni.physx/docs/dev_guide/contact_reports.html).
+Use `--curriculum easy` or `--curriculum moving` for the earlier curriculum
+steps. Checkpoint selection follows the installed Isaac Lab/RSL-RL launcher;
+the exact verified checkpoints are recorded in the experiment JSON files.
 
-Two compatibility issues found during the cloud run are intentionally recorded:
+### 5. Watch one policy live
 
-1. Isaac Sim 6.2's installed Python schema uses a shorter contact-threshold
-   factory name than newer documentation. The script tries that binding and
-   falls back to authoring the canonical USD attribute.
-2. The container runs as UID 1234 while the Jupyter workspace is owned by the
-   `ubuntu` user. Generated experiment data therefore goes into the existing
-   container-writable `/workspace/output` directory; only reviewed summaries
-   are copied into Git.
+```bash
+isaaclab play \
+  --rl_library rsl_rl \
+  --task TomJerry-Chase-Room-Eval-Direct \
+  --num_envs 1 \
+  --checkpoint /path/to/model_899.pt \
+  --viz viser \
+  presets=newton_mjwarp
+```
 
-## Live rendering status
+The Viser page provides pause, reset, plots, and camera controls. If the canvas
+opens blank, choose **Configuration & diagnostics → Reset View**.
 
-The Stage 3 GIF is a genuine RTX-rendered animation of the physics run, but it
-is a replay rather than an interactive live viewport. It can be viewed in
-Jupyter immediately after an experiment finishes.
+## Cloud and rendering notes
 
-The current Brev VM uses host networking, but its public address is provided
-through NAT and is not assigned to a VM network interface. Isaac Sim's WebRTC
-server must bind its media address to a real interface, so it reports
-`NVST_R_INTERNAL_ERROR` and never opens the stream port when given that public
-address. This explains why the authenticated viewer remains at **Waiting for
-stream** even though RTX rendering and physics work correctly. NVIDIA's
-[Isaac Sim Docker guide](https://github.com/isaac-sim/IsaacSim/blob/develop/tools/docker/README.md)
-documents the host-network and real-interface requirement.
+<details>
+<summary><strong>Why the project uses Viser for live playback</strong></summary>
 
-A true interactive viewport remains possible with a directly routable VM
-interface or a supported secure UDP/VPN route. That change may involve a new
-paid VM, so it will only be attempted after explicit approval. Until then, the
-rendered GIF gives a truthful, low-risk visual check of every experiment.
+Isaac Sim's RTX renderer worked correctly on the tested L40S and produced PNG
+frames. Its WebRTC server could not bind the Brev VM's NAT-provided public
+address to a real network interface, so the primary stream reported
+`NVST_R_INTERNAL_ERROR`. That is a livestream transport limitation, not a
+simulation failure.
 
-## Verified Stage 4 result: A* Tom
+Isaac Lab's lightweight Viser visualizer works over a Brev-authenticated HTTPS
+route and is sufficient for live Newton playback. It is not a replacement for
+the photorealistic RTX viewport.
 
-`src/tom_jerry_chase/grid_planner.py` converts the room into a 0.5 m occupancy
-grid. Free cells are graph nodes, horizontal and vertical moves are graph
-edges, and obstacle cells are removed from the graph. Obstacles are expanded
-by 0.58 m so the planned route leaves space for Tom's physical collider.
+</details>
 
-A* chooses the next cell with the smallest sum of:
+<details>
+<summary><strong>Security and cost controls</strong></summary>
 
-- the route cost already traveled, `g(n)`; and
-- the Manhattan-distance estimate to Jerry, `h(n)`.
+- Browser endpoints use Brev authentication.
+- Raw streaming ports are never intended to remain open to the internet.
+- Development ports must be restricted to the current client IP when used.
+- The tested L40S compute rate was $1.79/hour.
+- Stopping compute preserves the environment but continues storage billing.
+- Stop the instance whenever active GPU work pauses.
 
-`src/tom_jerry_chase/stage4_astar.py` follows the resulting cell centers as
-waypoints. It replans when Jerry enters another grid cell or when an obstacle
-blocks the remaining route. At frame 24, a yellow surprise wall appears across
-the initially chosen upper corridor, so Tom discards that path and searches
-for a lower route.
+</details>
 
-This is classical search, not machine learning: no policy is trained, no
-reward is optimized, and A* does not improve from experience.
+## Experiment discipline
 
-Stage 4 also increases Tom from 1.8 to 3.0 m/s and Jerry from 0.7 to 1.1 m/s.
-Before the final Stage 6 comparison, every controller will be rerun with the
-same speeds so the comparison remains fair.
+- Planning is never described as learning.
+- Training success is verified with separate fixed-seed evaluation.
+- Failed curricula remain in the CSV instead of disappearing from the story.
+- Exact seeds, checkpoint iterations, dependency versions, and episode counts
+  are stored beside the results.
+- GPU physics may introduce small numerical variation; reproducible settings do
+  not imply bit-for-bit identical CUDA execution.
 
-The verified Brev run reported:
+## Roadmap
 
-| Metric | Result |
-| --- | ---: |
-| Random seed | 7 |
-| Simulated time / catch time | 11.4 s |
-| Rendered frames | 171 |
-| Replans | 14 |
-| Environment changes | 1 |
-| Obstacle/wall collisions | 0 |
-| Initial Tom–Jerry distance | 8.7818 m |
-| Final Tom–Jerry distance | 0.79115 m |
-| Caught Jerry | Yes |
+Stage 6 will put direct pursuit, A*, and PPO into the same room with identical
+speeds, starts, Jerry routes, obstacle changes, and seeds. The comparison will
+report catch rate, collision count, and completion time.
 
-Two run-time corrections are preserved in Git history:
+Stage 7 will add randomized or procedurally selected room layouts, an unseen
+layout test, and a short narrated demo. The current full-room policy is a
+fixed-layout result and should be presented that way in interviews.
 
-1. The first catch threshold was 0.75 m, but Tom's 0.46 m radius plus Jerry's
-   0.34 m radius means the colliders touch at about 0.80 m. The corrected
-   0.82 m threshold includes a 2 cm numerical tolerance without requiring the
-   bodies to overlap.
-2. A shorter successful run left tail PNGs from an earlier timeout run. Stage
-   4 now removes only its own old generated PNGs before rendering, preventing
-   stale frames from contaminating the animation.
+## Upstream references
 
-The raw CSV, JSON summary, 171 PNG frames, and 86-frame GIF are in
-`/workspace/output/stage4_astar/` on Brev. The reviewed summary is stored in
-`experiments/stage4/astar_summary.json`.
+This project builds on NVIDIA's public APIs and documentation:
 
-## Verified Stage 5 result: Learning Tom, three-step curriculum
+- [Isaac Sim 6.2 documentation](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/)
+- [Isaac Lab 3.0 release](https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0)
+- [Isaac Lab reinforcement-learning guide](https://isaac-sim.github.io/IsaacLab/main/source/concepts/reinforcement_learning.html)
+- [Isaac Sim Replicator writer workflow](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/replicator_tutorials/tutorial_replicator_isaac_snippets.html)
+- [PhysX contact-report workflow](https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.1/extensions/runtime/source/omni.physx/docs/dev_guide/contact_reports.html)
+- [NVIDIA CUDA forward compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html)
 
-The first RL curriculum deliberately removes walls and keeps Jerry stationary.
-This is the minimum task that answers one question cleanly: can PPO learn a
-continuous 2D pursuit controller from observations and reward, rather than
-being handed a direction or path?
-
-`TomJerry-Chase-Easy-Direct` is an Isaac Lab `DirectRLEnv` with 64 parallel
-rooms during training. Each blue Tom is a dynamic rigid sphere and each orange
-Jerry is a stationary target. The policy receives four numbers:
-
-- Jerry's relative x and y position; and
-- Tom's x and y velocity.
-
-The policy outputs two continuous actions. They become world-frame x/y forces
-through Isaac Lab's permanent wrench composer. The reward favors progress,
-adds a 12-point catch bonus, and penalizes distance, excessive action, elapsed
-steps, and leaving the arena. A* is not used anywhere in this task.
-
-The official Isaac Lab 3.0 kitless image required CUDA 13, while the Brev host
-driver exposed CUDA 12.7 compatibility. `infra/Dockerfile.isaaclab-cuda-compat`
-installs NVIDIA's `cuda-compat-13-0` package in a derived image; the host was
-not modified or rebooted. The resulting container verified `CUDA_AVAILABLE
-True` and identified the GPU as an NVIDIA L40S.
-
-An 80-iteration PPO run using RSL-RL 5.5.1 and NVIDIA Newton MJWarp 1.6.1
-completed in 29.1 seconds. The final training batch reported a 1.0 catch rate,
-but that number alone is not treated as proof. A separate fixed-seed evaluation
-loaded `model_79.pt` and produced:
-
-| Metric | Result |
-| --- | ---: |
-| Evaluation seed | 20261101 |
-| Parallel environments | 64 |
-| Completed episodes | 513 |
-| Catches | 511 |
-| Catch success rate | 99.61% |
-| Out-of-bounds failures | 2 |
-| Mean successful catch time | 0.7282 s |
-
-This easy result established the learning pipeline, so the curriculum was then
-extended twice instead of treating the 99.61% score as the finished project.
-
-### Moving Jerry
-
-`TomJerry-Chase-Moving-Direct` makes Jerry follow a scripted figure-eight. The
-policy receives Jerry's velocity as well as the original relative-position and
-Tom-velocity observations. A 160-iteration PPO run processed 245,760
-environment steps in 48.35 seconds. Independent evaluation produced:
-
-| Metric | Result |
-| --- | ---: |
-| Evaluation seed | 20261101 |
-| Completed episodes | 512 |
-| Catches | 455 |
-| Catch success rate | 88.87% |
-| Out-of-bounds failures | 46 |
-| Timeouts | 11 |
-| Mean successful catch time | 1.0660 s |
-
-### Full room and dynamic obstacle
-
-`TomJerry-Chase-Room-Direct` adds four enclosing walls, two interior barriers
-that create alternate corridors, a yellow scripted sweeper, and a square Jerry
-route. Its 13 observations describe the target, Tom, the sweeper, local room
-position, and curriculum difficulty. The two actions are still continuous
-world-frame x/y forces: there is no A* path hidden inside the policy.
-
-Two shorter training attempts honestly failed with zero catches. The final
-curriculum held Jerry and the sweeper still for 300 iterations, ramped their
-motion over 200 iterations, and trained at full difficulty for another 400.
-That 900-iteration run processed 1,382,400 environment steps in 245.81 seconds.
-A fresh collision-instrumented evaluation of `model_899.pt` produced:
-
-| Metric | Result |
-| --- | ---: |
-| Evaluation seed | 20261101 |
-| Completed episodes | 512 |
-| Catches | 332 |
-| Catch success rate | 64.84% |
-| Out-of-bounds failures | 0 |
-| Timeouts | 180 |
-| Collision-entry events | 729 |
-| Mean collision-entry events / episode | 1.4238 |
-| Mean successful catch time | 5.4653 s |
-
-The seed, checkpoint, and dependency versions are recorded for reproduction.
-GPU contact solving can still introduce small run-to-run numerical variation,
-so this is a reproducible experiment specification rather than a promise of
-bit-for-bit CUDA results.
-
-This room is a fixed layout with a changing target and one dynamic obstacle.
-It demonstrates partial learning in that layout; it does **not** yet prove
-generalization to previously unseen or randomly generated rooms. Random-room
-training and a same-layout direct/A*/PPO comparison remain Stage 6 work.
-
-Live playback uses Isaac Lab's Viser visualizer through a Brev-authenticated
-HTTPS route. This lightweight Newton view works despite the VM's RTX WebRTC
-NAT limitation. It currently shows one policy-controlled full room for a clear
-demo and provides pause, reset, and live-plot controls; it is not the
-photorealistic Isaac Sim RTX viewport.
-
-Reviewed results are preserved in `experiments/stage5/`. Large checkpoints and
-TensorBoard event files remain under the ignored `work/isaaclab_logs/` folder
-on Brev.
+Built as a one-day learning sprint, with the debugging history left intact so
+the repository shows how the system evolved—not just the final happy path.
