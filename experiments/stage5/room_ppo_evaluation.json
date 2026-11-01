@@ -1,0 +1,20 @@
+{
+  "task": "TomJerry-Chase-Room-Eval-Direct",
+  "curriculum": "room",
+  "algorithm": "PPO via RSL-RL 5.5.1",
+  "physics": "NVIDIA Newton MJWarp 1.6.1",
+  "checkpoint": "/workspace/isaaclab/logs/rsl_rl/tom_jerry_room/2026-11-01_22-20-20/model_899.pt",
+  "checkpoint_iteration": 899,
+  "seed": 20261101,
+  "num_parallel_envs": 64,
+  "episodes_requested": 512,
+  "episodes_completed": 512,
+  "catch_count": 332,
+  "catch_success_rate": 0.6484375,
+  "out_of_bounds_count": 0,
+  "time_out_count": 180,
+  "collision_event_count": 729,
+  "mean_collision_events_per_episode": 1.4238281267462298,
+  "mean_catch_time_s": 5.465261323770532,
+  "vector_steps": 3620
+}

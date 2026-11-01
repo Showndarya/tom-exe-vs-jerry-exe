@@ -1,18 +1,21 @@
-# Stage 5 — Easy PPO chase
+# Stage 5 — PPO curriculum
 
 ## What was tested
 
-Tom learns continuous planar forces from four observations: Jerry's relative
-position and Tom's planar velocity. Jerry is stationary and there are no
-obstacles in this first curriculum step.
+Tom learns continuous planar forces over three progressively harder tasks:
+
+1. stationary Jerry in an open arena;
+2. a scripted figure-eight Jerry; and
+3. a fixed full room with a perimeter-running Jerry and moving sweeper.
 
 ## Why this task is intentionally easy
 
 Reward debugging and simulator integration are much easier when the first task
 has an obvious solution. If PPO cannot learn this version, adding walls or a
 moving target would hide the cause. A successful easy run establishes the
-training, checkpoint, playback, and evaluation pipeline; it does not establish
-obstacle-navigation performance.
+training, checkpoint, playback, and evaluation pipeline. It does not establish
+obstacle-navigation performance, which is why the harder tasks are evaluated
+separately.
 
 ## Reproducible commands
 
@@ -53,13 +56,45 @@ Run independent fixed-seed evaluation:
   --output /workspace/project/work/stage5_ppo_eval.json
 ```
 
+Choose a harder evaluator with `--curriculum moving` or `--curriculum room`.
+The room command is:
+
+```bash
+/opt/isaaclab-venv/bin/python \
+  /workspace/project/src/tom_jerry_chase/rl/evaluate_ppo.py \
+  --curriculum room \
+  --num-envs 64 \
+  --episodes 512 \
+  --seed 20261101 \
+  --output /workspace/project/work/stage5_room_eval.json
+```
+
+The legacy-compatible trainer checkpoints do not contain Isaac Lab's newer run
+manifest, so live playback must use the explicit checkpoint path rather than
+the `latest` alias:
+
+```bash
+isaaclab play \
+  --rl_library rsl_rl \
+  --task TomJerry-Chase-Room-Eval-Direct \
+  --num_envs 1 \
+  --checkpoint /workspace/isaaclab/logs/rsl_rl/tom_jerry_room/2026-11-01_22-20-20/model_899.pt \
+  --viz viser \
+  presets=newton_mjwarp
+```
+
 ## Actual result
 
-The evaluator completed 513 episodes because several vectorized environments
-terminated together on the final simulator step. It recorded 511 catches, two
-out-of-bounds failures, a 99.61% success rate, and a 0.7282-second mean catch
-time. See `easy_ppo_evaluation.json` for full precision and
-`easy_ppo_results.csv` for the training/evaluation summary.
+The easy task reached 99.61% success. Moving Jerry reached 88.87%. The full
+room reached 64.84%, with zero out-of-bounds failures, 180 timeouts, and 729
+collision-entry events across 512 episodes. The first 300-iteration room run
+and a shorter 500-iteration curriculum both produced zero catches; they were
+not hidden or relabeled as successes. The final 900-iteration curriculum is
+the result reported here.
+
+See the JSON files for full precision and `curriculum_results.csv` for the
+cross-curriculum summary. The fixed full-room result is not evidence of
+generalization to unseen room layouts.
 
 ## Upstream references
 

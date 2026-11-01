@@ -1,0 +1,9 @@
+task,phase,seed,num_parallel_envs,iterations,episodes_completed,total_environment_steps,catch_count,catch_success_rate,out_of_bounds_count,time_out_count,collision_event_count,mean_collision_events_per_episode,mean_catch_time_s,wall_time_s,checkpoint_iteration,notes
+easy,training,42,64,80,,122880,,1.0,,,,,,29.1,79,open arena and stationary Jerry
+easy,evaluation,20261101,64,,513,,511,0.9961013645224172,2,0,,,0.728180080352968,,79,fixed-seed independent evaluation
+moving,training,42,64,160,,245760,,,,,,,,48.35,159,scripted figure-eight Jerry
+moving,evaluation,20261101,64,,512,,455,0.888671875,46,11,,,1.065970751769042,,159,fixed-seed independent evaluation
+room_failed_initial,training,42,64,300,,460800,0,0.0,,,,,,112.91,,no curriculum and zero catches
+room_failed_short_curriculum,training,42,64,500,,768000,0,0.0,,,,,,159.69,,curriculum too short and zero catches
+room,training,42,64,900,,1382400,,,,,,,,245.81,899,300 iteration warmup 200 iteration ramp 400 full difficulty
+room,evaluation,20261101,64,,512,,332,0.6484375,0,180,729,1.4238281267462298,5.465261323770532,,899,fixed layout with moving sweeper

@@ -1,0 +1,18 @@
+{
+  "task": "TomJerry-Chase-Moving-Direct",
+  "curriculum": "moving",
+  "algorithm": "PPO via RSL-RL 5.5.1",
+  "physics": "NVIDIA Newton MJWarp 1.6.1",
+  "checkpoint": "/workspace/isaaclab/logs/rsl_rl/tom_jerry_moving/2026-11-01_22-00-04/model_159.pt",
+  "checkpoint_iteration": 159,
+  "seed": 20261101,
+  "num_parallel_envs": 64,
+  "episodes_requested": 512,
+  "episodes_completed": 512,
+  "catch_count": 455,
+  "catch_success_rate": 0.888671875,
+  "out_of_bounds_count": 46,
+  "time_out_count": 11,
+  "mean_catch_time_s": 1.065970751769042,
+  "vector_steps": 616
+}

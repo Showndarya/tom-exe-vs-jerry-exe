@@ -280,7 +280,7 @@ The raw CSV, JSON summary, 171 PNG frames, and 86-frame GIF are in
 `/workspace/output/stage4_astar/` on Brev. The reviewed summary is stored in
 `experiments/stage4/astar_summary.json`.
 
-## Verified Stage 5 result: Learning Tom, easy curriculum
+## Verified Stage 5 result: Learning Tom, three-step curriculum
 
 The first RL curriculum deliberately removes walls and keeps Jerry stationary.
 This is the minimum task that answers one question cleanly: can PPO learn a
@@ -320,16 +320,67 @@ loaded `model_79.pt` and produced:
 | Out-of-bounds failures | 2 |
 | Mean successful catch time | 0.7282 s |
 
-These results demonstrate learning only for the easy, obstacle-free,
-stationary-target curriculum. They do not demonstrate obstacle avoidance or
-generalization to moving Jerry. Those claims remain for later curriculum and
-Stage 6 tests.
+This easy result established the learning pipeline, so the curriculum was then
+extended twice instead of treating the 99.61% score as the finished project.
+
+### Moving Jerry
+
+`TomJerry-Chase-Moving-Direct` makes Jerry follow a scripted figure-eight. The
+policy receives Jerry's velocity as well as the original relative-position and
+Tom-velocity observations. A 160-iteration PPO run processed 245,760
+environment steps in 48.35 seconds. Independent evaluation produced:
+
+| Metric | Result |
+| --- | ---: |
+| Evaluation seed | 20261101 |
+| Completed episodes | 512 |
+| Catches | 455 |
+| Catch success rate | 88.87% |
+| Out-of-bounds failures | 46 |
+| Timeouts | 11 |
+| Mean successful catch time | 1.0660 s |
+
+### Full room and dynamic obstacle
+
+`TomJerry-Chase-Room-Direct` adds four enclosing walls, two interior barriers
+that create alternate corridors, a yellow scripted sweeper, and a square Jerry
+route. Its 13 observations describe the target, Tom, the sweeper, local room
+position, and curriculum difficulty. The two actions are still continuous
+world-frame x/y forces: there is no A* path hidden inside the policy.
+
+Two shorter training attempts honestly failed with zero catches. The final
+curriculum held Jerry and the sweeper still for 300 iterations, ramped their
+motion over 200 iterations, and trained at full difficulty for another 400.
+That 900-iteration run processed 1,382,400 environment steps in 245.81 seconds.
+A fresh collision-instrumented evaluation of `model_899.pt` produced:
+
+| Metric | Result |
+| --- | ---: |
+| Evaluation seed | 20261101 |
+| Completed episodes | 512 |
+| Catches | 332 |
+| Catch success rate | 64.84% |
+| Out-of-bounds failures | 0 |
+| Timeouts | 180 |
+| Collision-entry events | 729 |
+| Mean collision-entry events / episode | 1.4238 |
+| Mean successful catch time | 5.4653 s |
+
+The seed, checkpoint, and dependency versions are recorded for reproduction.
+GPU contact solving can still introduce small run-to-run numerical variation,
+so this is a reproducible experiment specification rather than a promise of
+bit-for-bit CUDA results.
+
+This room is a fixed layout with a changing target and one dynamic obstacle.
+It demonstrates partial learning in that layout; it does **not** yet prove
+generalization to previously unseen or randomly generated rooms. Random-room
+training and a same-layout direct/A*/PPO comparison remain Stage 6 work.
 
 Live playback uses Isaac Lab's Viser visualizer through a Brev-authenticated
 HTTPS route. This lightweight Newton view works despite the VM's RTX WebRTC
-NAT limitation. It shows nine policy-controlled rooms and provides pause,
-reset, and live-plot controls; it is not the photorealistic Isaac Sim RTX
-viewport.
+NAT limitation. It currently shows one policy-controlled full room for a clear
+demo and provides pause, reset, and live-plot controls; it is not the
+photorealistic Isaac Sim RTX viewport.
 
 Reviewed results are preserved in `experiments/stage5/`. Large checkpoints and
 TensorBoard event files remain under the ignored `work/isaaclab_logs/` folder
