@@ -130,6 +130,9 @@ class TomJerryMovingSceneCfg(TomJerrySceneCfg):
             # the target across the room.
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             mass_props=sim_utils.MassCfg(mass=0.25),
+            # Newton uses this disabled collider to derive a valid sphere
+            # inertia tensor without allowing Tom/Jerry contact forces.
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
             visual_material=sim_utils.PreviewSurfaceCfg(
                 diffuse_color=(1.0, 0.30, 0.03), metallic=0.0, roughness=0.65
             ),
