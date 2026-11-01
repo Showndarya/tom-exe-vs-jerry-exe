@@ -44,9 +44,7 @@ class TomJerrySceneCfg(InteractiveSceneCfg):
 
     ground = AssetBaseCfg(
         prim_path="/World/Ground",
-        spawn=sim_utils.GroundPlaneCfg(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.92, 0.84, 0.58))
-        ),
+        spawn=sim_utils.GroundPlaneCfg(color=(0.92, 0.84, 0.58)),
     )
 
     tom: RigidObjectCfg = RigidObjectCfg(
