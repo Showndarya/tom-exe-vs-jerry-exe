@@ -77,13 +77,13 @@ def main() -> None:
     from tom_jerry_chase.rl.tom_jerry_env_cfg import (
         TomJerryEasyEnvCfg,
         TomJerryMovingEnvCfg,
-        TomJerryRoomEnvCfg,
+        TomJerryRoomEvalEnvCfg,
     )
 
     if args.curriculum == "room":
-        task_id = "TomJerry-Chase-Room-Direct"
+        task_id = "TomJerry-Chase-Room-Eval-Direct"
         experiment_name = "tom_jerry_room"
-        env_cfg = TomJerryRoomEnvCfg()
+        env_cfg = TomJerryRoomEvalEnvCfg()
         agent_cfg = TomJerryRoomPPORunnerCfg()
     elif args.curriculum == "moving":
         task_id = "TomJerry-Chase-Moving-Direct"

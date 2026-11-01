@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ..reward_math import CATCH_BONUS
 from .tom_jerry_moving_env import TomJerryMovingEnv
 
 if TYPE_CHECKING:
@@ -31,6 +32,8 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
         self._in_collision = torch.zeros(
             self.num_envs, dtype=torch.bool, device=self.device
         )
+        self._control_step_count = 0
+        self._difficulty = 0.0 if self.cfg.curriculum_enabled else 1.0
         self._spawn_points = torch.tensor(
             [
                 (-2.8, 0.0),
@@ -53,8 +56,9 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
         segment_length = 2.0 * half
         perimeter = 4.0 * segment_length
         time_s = self.episode_length_buf[env_ids].float() * self.step_dt
+        route_speed = self.cfg.jerry_route_speed * self._difficulty
         route_distance = torch.remainder(
-            self.cfg.jerry_route_speed * time_s + self._jerry_phase[env_ids],
+            route_speed * time_s + self._jerry_phase[env_ids],
             perimeter,
         )
         segment = torch.floor(route_distance / segment_length).long()
@@ -76,19 +80,19 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
         )
         velocity_x = torch.where(
             segment == 0,
-            torch.full_like(offset, self.cfg.jerry_route_speed),
+            torch.full_like(offset, route_speed),
             torch.where(
                 segment == 2,
-                torch.full_like(offset, -self.cfg.jerry_route_speed),
+                torch.full_like(offset, -route_speed),
                 torch.zeros_like(offset),
             ),
         )
         velocity_y = torch.where(
             segment == 1,
-            torch.full_like(offset, self.cfg.jerry_route_speed),
+            torch.full_like(offset, route_speed),
             torch.where(
                 segment == 3,
-                torch.full_like(offset, -self.cfg.jerry_route_speed),
+                torch.full_like(offset, -route_speed),
                 torch.zeros_like(offset),
             ),
         )
@@ -119,9 +123,10 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
 
         time_s = self.episode_length_buf[env_ids].float() * self.step_dt
         theta = self.cfg.sweeper_angular_speed * time_s + self._sweeper_phase[env_ids]
-        local_x = self.cfg.sweeper_center_x + self.cfg.sweeper_amplitude * torch.sin(theta)
+        sweeper_amplitude = self.cfg.sweeper_amplitude * self._difficulty
+        local_x = self.cfg.sweeper_center_x + sweeper_amplitude * torch.sin(theta)
         velocity_x = (
-            self.cfg.sweeper_amplitude
+            sweeper_amplitude
             * self.cfg.sweeper_angular_speed
             * torch.cos(theta)
         )
@@ -143,6 +148,12 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = torch.clamp(actions, -1.0, 1.0)
+        if self.cfg.curriculum_enabled:
+            curriculum_fraction = (
+                self._control_step_count - self.cfg.curriculum_warmup_steps
+            ) / self.cfg.curriculum_ramp_steps
+            self._difficulty = max(0.0, min(1.0, curriculum_fraction))
+        self._control_step_count += 1
         self._update_jerry_trajectory()
         self._update_sweeper_trajectory()
 
@@ -195,6 +206,11 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
             self._sweeper_position_w - self._tom_position()
         ) / self.cfg.arena_half_extent
         sweeper_velocity = self._sweeper_velocity_w / self.cfg.sweeper_max_speed
+        difficulty = torch.full(
+            (self.num_envs, 1),
+            self._difficulty,
+            device=self.device,
+        )
         return {
             "policy": torch.cat(
                 (
@@ -204,6 +220,7 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
                     local_position,
                     relative_sweeper,
                     sweeper_velocity,
+                    difficulty,
                 ),
                 dim=-1,
             )
@@ -211,11 +228,16 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         reward = super()._get_rewards()
+        caught = torch.linalg.vector_norm(self._relative_target(), dim=-1) <= self.cfg.catch_radius
         collision = self._collision_mask()
         new_collision = collision & ~self._in_collision
         self._collision_events += new_collision.long()
         self._in_collision = collision
-        return reward - self.cfg.collision_penalty * collision.float()
+        return (
+            reward
+            + (self.cfg.room_catch_bonus - CATCH_BONUS) * caught.float()
+            - self.cfg.collision_penalty * collision.float()
+        )
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:

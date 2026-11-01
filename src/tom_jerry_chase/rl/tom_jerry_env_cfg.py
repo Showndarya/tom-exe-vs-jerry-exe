@@ -271,8 +271,8 @@ class TomJerryRoomSceneCfg(TomJerryMovingSceneCfg):
 class TomJerryRoomEnvCfg(TomJerryMovingEnvCfg):
     """Third curriculum step: a fixed full room plus a dynamic obstacle."""
 
-    episode_length_s = 8.0
-    observation_space = 12
+    episode_length_s = 10.0
+    observation_space = 13
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
         render_interval=2,
@@ -297,8 +297,19 @@ class TomJerryRoomEnvCfg(TomJerryMovingEnvCfg):
     sweeper_y = -2.0
     sweeper_angular_speed = 1.0
     sweeper_max_speed = 0.9
-    collision_penalty = 1.5
+    collision_penalty = 1.0
+    room_catch_bonus = 32.0
+    curriculum_enabled = True
+    curriculum_warmup_steps = 1200
+    curriculum_ramp_steps = 1800
 
     def __post_init__(self):
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(11.0, -11.0, 8.5))
+
+
+@configclass
+class TomJerryRoomEvalEnvCfg(TomJerryRoomEnvCfg):
+    """Full-difficulty room used for evaluation and live playback."""
+
+    curriculum_enabled = False
 
