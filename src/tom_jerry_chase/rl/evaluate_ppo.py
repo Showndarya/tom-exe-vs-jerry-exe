@@ -55,10 +55,13 @@ def main() -> None:
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, create_rsl_rl_runner
 
     from tom_jerry_chase.rl.agents.rsl_rl_ppo_cfg import TomJerryEasyPPORunnerCfg
-    from tom_jerry_chase.rl.tom_jerry_env_cfg import TomJerryEasyEnvCfg
+    from tom_jerry_chase.rl.tom_jerry_env_cfg import TomJerryEasyEnvCfg, TomJerryPhysicsCfg
 
     checkpoint = resolve_checkpoint(args.checkpoint, Path(args.log_root))
     env_cfg = TomJerryEasyEnvCfg()
+    # The unified Isaac Lab CLI resolves PresetCfg selectors before launch.
+    # This standalone evaluator must choose the concrete backend itself.
+    env_cfg.sim.physics = TomJerryPhysicsCfg().newton_mjwarp
     env_cfg.scene.num_envs = args.num_envs
     env_cfg.seed = args.seed
     agent_cfg = TomJerryEasyPPORunnerCfg()
