@@ -14,7 +14,7 @@ we compare direct pursuit, A* path planning, and a PPO policy honestly.
 - [x] Authenticated Brev viewer endpoint configured
 - [ ] Browser stream visually verified (blocked by the current VM's network topology)
 - [x] Stage 3 direct-pursuit baseline and animated RTX replay
-- [ ] Stage 4 A* planner
+- [x] Stage 4 A* planner with moving-target and blocked-route replanning
 - [ ] Stage 5 Isaac Lab PPO environment and training attempt
 - [ ] Stage 6 reproducible comparison
 - [ ] Stage 7 portfolio documentation and demo
@@ -226,3 +226,56 @@ A true interactive viewport remains possible with a directly routable VM
 interface or a supported secure UDP/VPN route. That change may involve a new
 paid VM, so it will only be attempted after explicit approval. Until then, the
 rendered GIF gives a truthful, low-risk visual check of every experiment.
+
+## Verified Stage 4 result: A* Tom
+
+`src/tom_jerry_chase/grid_planner.py` converts the room into a 0.5 m occupancy
+grid. Free cells are graph nodes, horizontal and vertical moves are graph
+edges, and obstacle cells are removed from the graph. Obstacles are expanded
+by 0.58 m so the planned route leaves space for Tom's physical collider.
+
+A* chooses the next cell with the smallest sum of:
+
+- the route cost already traveled, `g(n)`; and
+- the Manhattan-distance estimate to Jerry, `h(n)`.
+
+`src/tom_jerry_chase/stage4_astar.py` follows the resulting cell centers as
+waypoints. It replans when Jerry enters another grid cell or when an obstacle
+blocks the remaining route. At frame 24, a yellow surprise wall appears across
+the initially chosen upper corridor, so Tom discards that path and searches
+for a lower route.
+
+This is classical search, not machine learning: no policy is trained, no
+reward is optimized, and A* does not improve from experience.
+
+Stage 4 also increases Tom from 1.8 to 3.0 m/s and Jerry from 0.7 to 1.1 m/s.
+Before the final Stage 6 comparison, every controller will be rerun with the
+same speeds so the comparison remains fair.
+
+The verified Brev run reported:
+
+| Metric | Result |
+| --- | ---: |
+| Random seed | 7 |
+| Simulated time / catch time | 11.4 s |
+| Rendered frames | 171 |
+| Replans | 14 |
+| Environment changes | 1 |
+| Obstacle/wall collisions | 0 |
+| Initial Tom–Jerry distance | 8.7818 m |
+| Final Tom–Jerry distance | 0.79115 m |
+| Caught Jerry | Yes |
+
+Two run-time corrections are preserved in Git history:
+
+1. The first catch threshold was 0.75 m, but Tom's 0.46 m radius plus Jerry's
+   0.34 m radius means the colliders touch at about 0.80 m. The corrected
+   0.82 m threshold includes a 2 cm numerical tolerance without requiring the
+   bodies to overlap.
+2. A shorter successful run left tail PNGs from an earlier timeout run. Stage
+   4 now removes only its own old generated PNGs before rendering, preventing
+   stale frames from contaminating the animation.
+
+The raw CSV, JSON summary, 171 PNG frames, and 86-frame GIF are in
+`/workspace/output/stage4_astar/` on Brev. The reviewed summary is stored in
+`experiments/stage4/astar_summary.json`.

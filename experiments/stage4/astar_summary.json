@@ -1,0 +1,18 @@
+{
+  "controller": "astar",
+  "seed": 7,
+  "tom_speed": 3.0,
+  "jerry_speed": 1.1,
+  "frames": 171,
+  "simulated_seconds": 11.4,
+  "caught": true,
+  "catch_time_s": 11.4,
+  "collision_count": 0,
+  "replans": 14,
+  "environment_changes": 1,
+  "initial_distance": 8.7818,
+  "final_distance": 0.79115,
+  "total_planned_distance": 102.5,
+  "metrics_csv": "/workspace/output/stage4_astar/astar_metrics.csv",
+  "frames_dir": "/workspace/output/stage4_astar/frames"
+}
