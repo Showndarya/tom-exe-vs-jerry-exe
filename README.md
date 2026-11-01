@@ -10,8 +10,9 @@ we compare direct pursuit, A* path planning, and a PPO policy honestly.
 - [x] Isaac Sim 6.2 compatibility check passed
 - [x] Full headless Isaac Sim runtime reached `app ready`
 - [x] Stage 2 primitive room, Tom, and Jerry
+- [x] Stage 2 RTX PNG render verified on the L40S
 - [x] Authenticated Brev viewer endpoint configured
-- [ ] Browser stream visually verified
+- [ ] Browser stream visually verified (blocked by the current livestream server)
 - [ ] Stage 3 direct-pursuit baseline
 - [ ] Stage 4 A* planner
 - [ ] Stage 5 Isaac Lab PPO environment and training attempt
@@ -54,6 +55,38 @@ The generated USDA was then checked for `/World/PhysicsScene`, `/World/Tom`,
 and `/World/Jerry`. Detailed setup and repeatable run commands will continue to
 be added as each milestone is verified on the Brev GPU rather than written
 speculatively.
+
+### Verified headless RTX render
+
+Interactive streaming and rendering are separate pieces. The livestream
+extension can fail while Isaac Sim's RTX renderer and the simulation remain
+healthy. `src/tom_jerry_chase/render_stage2.py` opens the saved USD stage,
+creates a Replicator camera and RGB writer, and saves three PNG frames using
+the L40S GPU.
+
+The following command was executed successfully on the Brev VM. It reuses the
+workspace volume from the Compose-created Isaac Sim container, which may be
+stopped while the one-off renderer runs:
+
+```bash
+docker run --gpus all --rm --name tomjerry-stage2-render \
+  --shm-size=2g \
+  --volumes-from tomjerry-isaac-sim-1 \
+  -e ACCEPT_EULA=Y \
+  -e PRIVACY_CONSENT=Y \
+  --entrypoint /isaac-sim/python.sh \
+  nvcr.io/nvidia/isaac-sim:6.2.0 \
+  /workspace/src/tom_jerry_chase/render_stage2.py
+```
+
+The verification marker and final image path were:
+
+```text
+STAGE2_RENDER_OK image=/workspace/output/stage2_render/rgb_0002.png frames=3
+```
+
+The render script follows NVIDIA's
+[Replicator writer workflow](https://docs.isaacsim.omniverse.nvidia.com/6.2.0/replicator_tutorials/tutorial_replicator_isaac_snippets.html).
 
 ## Secure Brev streaming
 
