@@ -52,7 +52,12 @@ def main() -> None:
     import torch
 
     import tom_jerry_chase.rl  # noqa: F401 - registers the Gym task
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, create_rsl_rl_runner
+    from isaaclab_rl.rsl_rl import (
+        RslRlVecEnvWrapper,
+        check_rsl_rl_version,
+        create_rsl_rl_runner,
+        handle_deprecated_rsl_rl_cfg,
+    )
 
     from tom_jerry_chase.rl.agents.rsl_rl_ppo_cfg import TomJerryEasyPPORunnerCfg
     from tom_jerry_chase.rl.tom_jerry_env_cfg import TomJerryEasyEnvCfg, TomJerryPhysicsCfg
@@ -66,6 +71,7 @@ def main() -> None:
     env_cfg.seed = args.seed
     agent_cfg = TomJerryEasyPPORunnerCfg()
     agent_cfg.seed = args.seed
+    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, check_rsl_rl_version())
 
     with launch_simulation(env_cfg, args):
         env = gym.make("TomJerry-Chase-Easy-Direct", cfg=env_cfg)
