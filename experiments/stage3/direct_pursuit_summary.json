@@ -1,0 +1,13 @@
+{
+  "controller": "direct_pursuit",
+  "seed": 7,
+  "frames": 120,
+  "simulated_seconds": 8.0,
+  "caught": false,
+  "collision_count": 1,
+  "stuck_frames": 14,
+  "initial_distance": 8.7818,
+  "final_distance": 6.60316,
+  "metrics_csv": "/workspace/output/stage3_direct_pursuit/direct_pursuit_metrics.csv",
+  "frames_dir": "/workspace/output/stage3_direct_pursuit/frames"
+}
