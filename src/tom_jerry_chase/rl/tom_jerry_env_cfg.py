@@ -114,3 +114,48 @@ class TomJerryEasyEnvCfg(DirectRLEnvCfg):
     def __post_init__(self):
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, -8.0, 6.5))
 
+
+@configclass
+class TomJerryMovingSceneCfg(TomJerrySceneCfg):
+    """Training scene whose Jerry is a script-controlled rigid object."""
+
+    jerry: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Jerry",
+        spawn=sim_utils.SphereCfg(
+            radius=0.26,
+            # Jerry is intentionally non-colliding.  The task detects a catch
+            # from distance, while the environment prescribes Jerry's pose and
+            # velocity every control step.  This stays backend-neutral in the
+            # Isaac Lab 3 tensor API and prevents Tom from physically punting
+            # the target across the room.
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.25),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(1.0, 0.30, 0.03), metallic=0.0, roughness=0.65
+            ),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.30)),
+    )
+
+
+@configclass
+class TomJerryMovingEnvCfg(TomJerryEasyEnvCfg):
+    """Second curriculum step: pursue a scripted figure-eight Jerry."""
+
+    episode_length_s = 5.0
+    observation_space = 6
+    scene: TomJerryMovingSceneCfg = TomJerryMovingSceneCfg(
+        num_envs=256,
+        env_spacing=7.0,
+        replicate_physics=True,
+        clone_in_fabric=True,
+    )
+
+    jerry_x_radius = 1.15
+    jerry_y_radius = 0.85
+    jerry_angular_speed = 1.05
+    jerry_max_speed = 1.25
+    catch_radius = 0.52
+    reset_radius_min = 1.6
+    reset_radius_max = 2.9
+

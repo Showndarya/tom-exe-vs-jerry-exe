@@ -43,3 +43,11 @@ class TomJerryEasyPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
     )
 
+
+@configclass
+class TomJerryMovingPPORunnerCfg(TomJerryEasyPPORunnerCfg):
+    """PPO settings for the moving-target curriculum step."""
+
+    max_iterations = 160
+    experiment_name = "tom_jerry_moving"
+

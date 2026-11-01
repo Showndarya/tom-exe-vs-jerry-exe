@@ -18,3 +18,17 @@ gym.register(
     },
 )
 
+
+gym.register(
+    id="TomJerry-Chase-Moving-Direct",
+    entry_point=f"{__name__}.tom_jerry_moving_env:TomJerryMovingEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.tom_jerry_env_cfg:TomJerryMovingEnvCfg",
+        "rsl_rl_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:TomJerryMovingPPORunnerCfg"
+        ),
+        "default_agent": "rsl_rl",
+    },
+)
+
