@@ -40,6 +40,14 @@ class TomJerryMovingEnv(DirectRLEnv):
         self._jerry_phase = torch.zeros(self.num_envs, device=self.device)
         self._jerry_position_w = torch.zeros((self.num_envs, 2), device=self.device)
         self._jerry_velocity_w = torch.zeros((self.num_envs, 2), device=self.device)
+        # Isaac Lab 3 exposes an asset's ``_ALL_INDICES`` as a Warp array.
+        # Trajectory math below indexes Torch episode buffers, so retain a
+        # Torch-native index vector rather than relying on implicit conversion.
+        self._all_env_ids = torch.arange(
+            self.num_envs,
+            dtype=torch.long,
+            device=self.device,
+        )
 
     def _tom_position(self) -> torch.Tensor:
         return self.tom.data.root_pos_w.torch[:, :2]
@@ -52,7 +60,7 @@ class TomJerryMovingEnv(DirectRLEnv):
 
     def _update_jerry_trajectory(self, env_ids: torch.Tensor | Sequence[int] | None = None):
         if env_ids is None:
-            env_ids = self.jerry._ALL_INDICES
+            env_ids = self._all_env_ids
 
         time_s = self.episode_length_buf[env_ids].float() * self.step_dt
         theta = self.cfg.jerry_angular_speed * time_s + self._jerry_phase[env_ids]
