@@ -1,0 +1,42 @@
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local scratch space
+work/
+
+# NVIDIA/Omniverse caches and generated runtime data
+.cache/
+cache/
+kit/cache/
+logs/*.log
+*.usdc
+*.usd
+
+# RL outputs can become very large
+checkpoints/
+runs/
+wandb/
+*.pt
+*.pth
+
+# Video renders are delivered separately unless intentionally force-added
+*.mp4
+*.mov
+
