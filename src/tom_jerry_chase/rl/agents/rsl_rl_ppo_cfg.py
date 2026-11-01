@@ -15,6 +15,7 @@ class TomJerryEasyPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     save_interval = 20
     experiment_name = "tom_jerry_easy"
     clip_actions = 1.0
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
 
     actor = RslRlMLPModelCfg(
         hidden_dims=[64, 64],
