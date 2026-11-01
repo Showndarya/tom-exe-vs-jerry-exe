@@ -28,7 +28,9 @@ DURATION_SECONDS = 12
 FRAME_COUNT = RENDER_HZ * DURATION_SECONDS
 TOM_SPEED = 3.0
 JERRY_SPEED = 1.1
-CATCH_DISTANCE = 0.75
+# Tom's 0.46 m collider radius plus Jerry's 0.34 m collider radius is 0.80 m.
+# A tiny 0.02 m tolerance counts physical contact without requiring overlap.
+CATCH_DISTANCE = 0.82
 SEED = 7
 
 GRID_RESOLUTION = 0.5
@@ -190,6 +192,11 @@ def main() -> None:
     )
     render_product = rep.create.render_product(camera, RESOLUTION, name="Stage4Render")
     FRAME_DIR.mkdir(parents=True, exist_ok=True)
+    # A caught run can be shorter than an earlier timeout run.  Remove only
+    # previously generated Stage 4 PNGs so stale tail frames cannot enter the
+    # new animation.
+    for old_frame in FRAME_DIR.glob("*.png"):
+        old_frame.unlink()
     writer = rep.WriterRegistry.get("BasicWriter")
     writer.initialize(output_dir=str(FRAME_DIR), rgb=True)
     writer.attach([render_product])
