@@ -8,11 +8,47 @@ from typing import TYPE_CHECKING
 
 import torch
 
+import isaaclab.sim as sim_utils
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+
 from ..reward_math import CATCH_BONUS
 from .tom_jerry_moving_env import TomJerryMovingEnv
 
 if TYPE_CHECKING:
     from .tom_jerry_env_cfg import TomJerryRoomEnvCfg
+
+
+CHARACTER_DETAILS_CFG = VisualizationMarkersCfg(
+    prim_path="/Visuals/TomJerryCharacterDetails",
+    markers={
+        "tom_ear": sim_utils.ConeCfg(
+            radius=0.15,
+            height=0.30,
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.08, 0.30, 0.82), roughness=0.58
+            ),
+        ),
+        "tom_muzzle": sim_utils.SphereCfg(
+            radius=0.14,
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.78, 0.88, 1.0), roughness=0.72
+            ),
+        ),
+        "jerry_ear": sim_utils.SphereCfg(
+            radius=0.12,
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.88, 0.16, 0.03), roughness=0.7
+            ),
+        ),
+        "jerry_tail": sim_utils.CapsuleCfg(
+            radius=0.035,
+            height=0.48,
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.94, 0.40, 0.16), roughness=0.72
+            ),
+        ),
+    },
+)
 
 
 class TomJerryRoomEnv(TomJerryMovingEnv):
@@ -34,6 +70,12 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
         )
         self._control_step_count = 0
         self._difficulty = 0.0 if self.cfg.curriculum_enabled else 1.0
+        # Debug markers are visual-only.  They give the simple rigid bodies a
+        # recognizable cat face and mouse silhouette without adding colliders,
+        # masses, observations, or actions to the learned control problem.
+        self._character_markers = None
+        if self.sim.visualizers:
+            self._character_markers = VisualizationMarkers(CHARACTER_DETAILS_CFG)
         self._spawn_points = torch.tensor(
             [
                 (-2.8, 0.0),
@@ -46,6 +88,94 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
                 (0.2, -2.8),
             ],
             device=self.device,
+        )
+        self._visualize_character_details()
+
+    @staticmethod
+    def _heading_and_perpendicular(velocity: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        speed = torch.linalg.vector_norm(velocity, dim=-1, keepdim=True)
+        fallback = torch.zeros_like(velocity)
+        fallback[:, 0] = 1.0
+        heading = torch.where(speed > 0.05, velocity / torch.clamp(speed, min=1.0e-6), fallback)
+        perpendicular = torch.stack((-heading[:, 1], heading[:, 0]), dim=-1)
+        return heading, perpendicular
+
+    def _visualize_character_details(self) -> None:
+        if self._character_markers is None:
+            return
+
+        tom_position = self.tom.data.root_pos_w.torch[:, :3]
+        jerry_position = self.jerry.data.root_pos_w.torch[:, :3]
+        tom_heading, tom_perpendicular = self._heading_and_perpendicular(
+            self._tom_velocity()
+        )
+        jerry_heading, jerry_perpendicular = self._heading_and_perpendicular(
+            self._jerry_velocity_w
+        )
+
+        def offset_position(
+            origin: torch.Tensor,
+            forward: torch.Tensor,
+            sideways: torch.Tensor,
+            z_offset: float,
+        ) -> torch.Tensor:
+            result = origin.clone()
+            result[:, :2] += forward + sideways
+            result[:, 2] += z_offset
+            return result
+
+        tom_ear_left = offset_position(
+            tom_position, 0.10 * tom_heading, 0.15 * tom_perpendicular, 0.37
+        )
+        tom_ear_right = offset_position(
+            tom_position, 0.10 * tom_heading, -0.15 * tom_perpendicular, 0.37
+        )
+        tom_muzzle = offset_position(
+            tom_position, 0.33 * tom_heading, torch.zeros_like(tom_heading), 0.02
+        )
+        jerry_ear_left = offset_position(
+            jerry_position, -0.03 * jerry_heading, 0.12 * jerry_perpendicular, 0.18
+        )
+        jerry_ear_right = offset_position(
+            jerry_position, -0.03 * jerry_heading, -0.12 * jerry_perpendicular, 0.18
+        )
+        jerry_tail = offset_position(
+            jerry_position, -0.34 * jerry_heading, torch.zeros_like(jerry_heading), -0.02
+        )
+
+        translations = torch.cat(
+            (
+                tom_ear_left,
+                tom_ear_right,
+                tom_muzzle,
+                jerry_ear_left,
+                jerry_ear_right,
+                jerry_tail,
+            ),
+            dim=0,
+        )
+        marker_indices = torch.cat(
+            (
+                torch.zeros(2 * self.num_envs, dtype=torch.int32, device=self.device),
+                torch.ones(self.num_envs, dtype=torch.int32, device=self.device),
+                torch.full((2 * self.num_envs,), 2, dtype=torch.int32, device=self.device),
+                torch.full((self.num_envs,), 3, dtype=torch.int32, device=self.device),
+            )
+        )
+        orientations = torch.zeros((6 * self.num_envs, 4), device=self.device)
+        orientations[:, 0] = 1.0
+        # Capsules point along local Z. Rotate each tail 90 degrees so its long
+        # axis follows the opposite of Jerry's current direction of travel.
+        tail_orientation = orientations[-self.num_envs :]
+        tail_orientation[:, 0] = math.sqrt(0.5)
+        tail_orientation[:, 1] = -math.sqrt(0.5) * jerry_heading[:, 1]
+        tail_orientation[:, 2] = math.sqrt(0.5) * jerry_heading[:, 0]
+        tail_orientation[:, 3] = 0.0
+
+        self._character_markers.visualize(
+            translations=translations,
+            orientations=orientations,
+            marker_indices=marker_indices,
         )
 
     def _update_jerry_trajectory(self, env_ids: torch.Tensor | Sequence[int] | None = None):
@@ -156,6 +286,7 @@ class TomJerryRoomEnv(TomJerryMovingEnv):
         self._control_step_count += 1
         self._update_jerry_trajectory()
         self._update_sweeper_trajectory()
+        self._visualize_character_details()
 
     @staticmethod
     def _circle_hits_rect(
