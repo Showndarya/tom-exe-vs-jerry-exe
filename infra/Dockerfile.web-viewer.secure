@@ -1,0 +1,98 @@
+# Derived from NVIDIA IsaacSim's Apache-2.0-licensed web-viewer Dockerfile:
+# https://github.com/isaac-sim/IsaacSim/blob/main/tools/docker/web-viewer/Dockerfile
+#
+# The upstream image uses one host for both signaling and UDP media. Brev's
+# authenticated HTTPS proxy needs a separate signaling hostname while media
+# continues to use the VM's IP-restricted UDP port.
+
+# Build stage
+FROM nvcr.io/nvidia/base/ubuntu:noble-20251013 AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git curl ca-certificates \
+    && curl -fsSL --proto '=https' https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Scope the NVIDIA npm registry, scaffold the app, then clean up the credential.
+RUN echo '@nvidia:registry=https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/' >> /root/.npmrc \
+    && npx @nvidia/create-ov-web-rtc-app@2.1.5 --name=web-viewer --sample=local-sample --external --outputDir=/app sample-app --framework=react \
+    && rm -f /root/.npmrc
+
+WORKDIR /app/web-viewer
+
+# NVIDIA's HTTPS deployment pattern keeps the page and signaling handshake on
+# one origin. Vite serves the app and upgrades /sign_in to Kit's internal
+# signaling service; media remains a direct DTLS/SRTP flow to the VM.
+RUN grep -qF 'export default defineConfig({' vite.config.ts \
+    && sed -i "s|export default defineConfig({|export default defineConfig({\\n  preview: { proxy: { '/sign_in': { target: 'http://isaac-sim:49100', ws: true, changeOrigin: true } } },|" vite.config.ts \
+    && grep -qF "target: 'http://isaac-sim:49100'" vite.config.ts
+
+# Patch stream config with build-time values. Signaling can travel through an
+# authenticated same-origin WSS proxy while media still targets the VM's
+# restricted UDP IP.
+ARG ISAACSIM_HOST=127.0.0.1
+ARG ISAACSIM_SIGNAL_HOST=127.0.0.1
+ARG ISAACSIM_SIGNAL_PORT=49100
+ARG ISAACSIM_STREAM_PORT=47998
+ARG ISAACSIM_FORCE_WSS=false
+RUN grep -qF "signalingServer: '127.0.0.1'," src/main.tsx \
+    && sed -i "s/signalingServer: [^,]*/signalingServer: '${ISAACSIM_SIGNAL_HOST}'/" src/main.tsx \
+    && sed -i "/signalingServer:/a\\    signalingPort: ${ISAACSIM_SIGNAL_PORT},\n    mediaServer: '${ISAACSIM_HOST}',\n    mediaPort: ${ISAACSIM_STREAM_PORT},\n    forceWSS: ${ISAACSIM_FORCE_WSS}," src/main.tsx \
+    && grep -qF "signalingPort: ${ISAACSIM_SIGNAL_PORT}," src/main.tsx \
+    && grep -qF "mediaPort: ${ISAACSIM_STREAM_PORT}," src/main.tsx \
+    && grep -qF "forceWSS: ${ISAACSIM_FORCE_WSS}," src/main.tsx
+
+# Preserve browser shortcuts from being swallowed by the stream.
+RUN grep -qF 'void app.initialize();' src/main.tsx \
+    && sed -i '/void app.initialize/i\
+const sc = document.getElementById("stream-container");\
+if (sc) {\
+    sc.addEventListener("keydown", (e: KeyboardEvent) => {\
+        if (e.key === "F11" || e.code === "F11") { e.preventDefault(); e.stopPropagation(); if (document.fullscreenElement) { document.exitFullscreen(); } else { document.documentElement.requestFullscreen(); } return; }\
+        if (e.key === "F7") { e.preventDefault(); return; }\
+        if (["F5"].includes(e.key) || e.code === "F5") { e.preventDefault(); e.stopPropagation(); window.location.reload(); return; }\
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "r") { e.preventDefault(); e.stopPropagation(); window.location.reload(); return; }\
+        if (["F12"].includes(e.key) || e.code === "F12") { e.stopPropagation(); return; }\
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && ["i","j","c"].includes(e.key.toLowerCase())) { e.stopPropagation(); return; }\
+        if (e.metaKey && e.altKey && ["i","j","c"].includes(e.key.toLowerCase())) { e.stopPropagation(); return; }\
+    }, true);\
+}' src/main.tsx \
+    && grep -qF 'const sc = document.getElementById("stream-container");' src/main.tsx
+
+RUN npm install --ignore-scripts
+RUN npm run build
+
+# Production stage
+FROM nvcr.io/nvidia/base/ubuntu:noble-20251013
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates \
+    && curl -fsSL --proto '=https' https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r appuser --gid 1234 && useradd --no-log-init -r -g appuser --uid 1234 -d /app -s /usr/sbin/nologin appuser
+
+WORKDIR /app
+
+COPY --from=builder --chmod=755 /app/web-viewer/package.json ./
+COPY --from=builder --chmod=644 /app/web-viewer/vite.config.ts ./
+
+RUN echo '@nvidia:registry=https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/' >> /root/.npmrc \
+    && npm install --ignore-scripts \
+    && npm cache clean --force \
+    && rm -f /root/.npmrc \
+    && chown -R appuser:appuser node_modules
+
+COPY --from=builder --chmod=755 /app/web-viewer/dist ./dist
+
+USER appuser
+
+EXPOSE 8210
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8210/ || exit 1
+
+CMD ["./node_modules/.bin/vite", "preview", "--host", "--port", "8210"]

@@ -69,18 +69,25 @@ The web page is exposed through a Brev-authenticated HTTPS endpoint. The raw
 WebRTC ports are restricted on the VM itself to the current client IP. Do not
 leave unauthenticated streaming ports open without that host firewall.
 
-Create the authenticated viewer route:
+Create one authenticated route for the viewer. The viewer proxies the
+`/sign_in` WebSocket path to Isaac Sim inside Docker, following NVIDIA's HTTPS
+deployment pattern:
 
 ```bash
 brev ports open tom-exe-jerry-exe 8210 --protocol http --json
 ```
 
-Set `WEB_VIEWER_ALLOWED_HOST` to the hostname returned by Brev, without the
-`https://` prefix. The override passes that exact hostname to Vite instead of
-allowing every host:
+Set both `WEB_VIEWER_ALLOWED_HOST` and `ISAACSIM_SIGNAL_HOST` to the same
+viewer hostname returned by Brev, without the `https://` prefix. The custom
+viewer keeps the page and signaling channel on one HTTPS/WSS origin while
+sending media to the VM's IP-restricted UDP port. Port `49100` does not need a
+separate Brev route:
 
 ```bash
 WEB_VIEWER_ALLOWED_HOST="<authenticated-viewer-host>" \
+ISAACSIM_SIGNAL_HOST="<authenticated-viewer-host>" \
+ISAACSIM_SIGNAL_PORT=443 \
+ISAACSIM_FORCE_WSS=true \
 ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:6.2.0 \
 ISAACSIM_HOST="<brev-public-ip>" \
 ISAAC_SIM_DATA=/home/ubuntu/docker/isaac-sim \
@@ -89,6 +96,14 @@ docker compose -p tomjerry \
   -f /home/ubuntu/tom-exe-vs-jerry-exe/infra/docker-compose.stream.override.yml \
   up --build -d
 ```
+
+The tested Brev VM reached the viewer login but did not start Isaac Sim's
+primary stream server. Isaac Sim logged `NVST_R_INTERNAL_ERROR` and
+`Failed to start the primary stream server`, so port `49100` never listened
+and the browser correctly remained at **Waiting for stream**. This is a
+server-side livestream/driver compatibility issue, not an authentication
+failure. The scene itself still runs and renders on the GPU; use the verified
+headless render path below while the VM image is on its current R565 driver.
 
 The temporary `iptables` rules used during development allow only
 `<current-client-ip>/32` to the three streaming ports, followed by a drop rule
