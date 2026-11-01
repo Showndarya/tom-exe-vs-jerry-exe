@@ -146,6 +146,7 @@ def main() -> None:
     # Vectorized environments can finish several episodes on the final step,
     # so report the exact number observed rather than silently discarding them.
     evaluated = completed
+    time_outs_int = max(0, evaluated - successes_int - out_of_bounds_int)
     result = {
         "task": task_id,
         "curriculum": args.curriculum,
@@ -160,6 +161,7 @@ def main() -> None:
         "catch_count": successes_int,
         "catch_success_rate": successes_int / evaluated if evaluated else 0.0,
         "out_of_bounds_count": out_of_bounds_int,
+        "time_out_count": time_outs_int,
         "mean_catch_time_s": catch_time_sum / successes if successes else None,
         "vector_steps": vector_steps,
     }
@@ -170,6 +172,7 @@ def main() -> None:
         f"episodes={evaluated} catches={successes_int} "
         f"success_rate={result['catch_success_rate']:.4f} "
         f"out_of_bounds={out_of_bounds_int} "
+        f"time_outs={time_outs_int} "
         f"mean_catch_time_s={result['mean_catch_time_s']:.4f}",
         flush=True,
     )
